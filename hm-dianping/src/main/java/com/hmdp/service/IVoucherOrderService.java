@@ -1,6 +1,7 @@
 package com.hmdp.service;
 
 import com.hmdp.dto.Result;
+import com.hmdp.dto.SeckillOrderStatusDTO;
 import com.hmdp.entity.VoucherOrder;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -27,4 +28,7 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
      * @param voucherOrder
      */
     void createVouchOrder(VoucherOrder voucherOrder);
+
+    /** 查询当前用户的秒杀订单异步处理状态。 */
+    SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId);
 }

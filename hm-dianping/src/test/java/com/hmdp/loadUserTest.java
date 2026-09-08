@@ -14,6 +14,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import javax.annotation.Resource;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,30 +32,30 @@ public class loadUserTest {
     void loadUserTokenToRedis() throws IOException {
         List<User> users = userService.list();
 
-        FileWriter writer = new FileWriter("F:\\tokens.txt");
+        String tokenFile = System.getProperty("hmdp.test-token-file", "tokens.txt");
 
-        for (User user : users) {
-            String token = UUID.randomUUID().toString(true);
+        try (FileWriter writer = new FileWriter(Path.of(tokenFile).toFile())) {
+            for (User user : users) {
+                String token = UUID.randomUUID().toString(true);
 
-            UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+                UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
 
-            Map<String, Object> userMap = BeanUtil.beanToMap(
-                    userDTO,
-                    new HashMap<>(),
-                    CopyOptions.create()
-                            .setIgnoreNullValue(true)
-                            .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString())
-            );
+                Map<String, Object> userMap = BeanUtil.beanToMap(
+                        userDTO,
+                        new HashMap<>(),
+                        CopyOptions.create()
+                                .setIgnoreNullValue(true)
+                                .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString())
+                );
 
-            String tokenKey = RedisConstants.LOGIN_USER_KEY + token;
+                String tokenKey = RedisConstants.LOGIN_USER_KEY + token;
 
-            stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
-            stringRedisTemplate.expire(tokenKey, RedisConstants.LOGIN_USER_TTL, TimeUnit.DAYS);
+                stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
+                stringRedisTemplate.expire(tokenKey, RedisConstants.LOGIN_USER_TTL, TimeUnit.DAYS);
 
-            writer.write(token);
-            writer.write("\n");
+                writer.write(token);
+                writer.write("\n");
+            }
         }
-
-        writer.close();
     }
 }

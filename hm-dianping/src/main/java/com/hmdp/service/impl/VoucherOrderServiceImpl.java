@@ -2,6 +2,7 @@ package com.hmdp.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.SeckillOrderStatusDTO;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.mq.PendingOrderService;
@@ -9,6 +10,7 @@ import com.hmdp.mq.VoucherOrderMessage;
 import com.hmdp.mq.VoucherOrderProducer;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
+import com.hmdp.service.SeckillOrderStatus;
 import com.hmdp.utils.SnowflakeIdGenerator;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.Arrays;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -142,6 +145,28 @@ public class VoucherOrderServiceImpl
         }
     }
 
+    @Override
+    public SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId) {
+        Map<Object, Object> pendingData = pendingOrderService.getData(orderId);
+        if (!pendingData.isEmpty()) {
+            if (!belongsToUser(pendingData.get("userId"), userId)) {
+                return notFound(orderId);
+            }
+            return buildStatus(orderId, pendingData);
+        }
+
+        VoucherOrder order = getById(orderId);
+        if (order == null || !userId.equals(order.getUserId())) {
+            return notFound(orderId);
+        }
+
+        SeckillOrderStatusDTO status = new SeckillOrderStatusDTO();
+        status.setOrderId(orderId);
+        status.setStatus(SeckillOrderStatus.COMPLETED);
+        status.setPipelineStatus("ORDER_CREATED");
+        return status;
+    }
+
     /**
      * RabbitMQ消费者调用的订单创建方法
      */
@@ -200,5 +225,55 @@ public class VoucherOrderServiceImpl
                     "数据库库存不足"
             );
         }
+    }
+
+    private SeckillOrderStatusDTO buildStatus(Long orderId, Map<Object, Object> data) {
+        SeckillOrderStatusDTO status = new SeckillOrderStatusDTO();
+        String pipelineStatus = asString(data.get("status"));
+
+        status.setOrderId(orderId);
+        status.setPipelineStatus(pipelineStatus);
+        status.setAcceptedAt(readLong(data.get("createTime")));
+        status.setConsumeStartedAt(readLong(data.get("consumeStartTime")));
+        status.setDbCommittedAt(readLong(data.get("dbCommittedTime")));
+        status.setQueueDelayMillis(readLong(data.get("queueDelayMillis")));
+        status.setDbProcessMillis(readLong(data.get("dbProcessMillis")));
+        status.setEndToEndMillis(readLong(data.get("endToEndMillis")));
+        status.setFailureReason(asString(data.get("lastError")));
+
+        if ("ORDER_CREATED".equals(pipelineStatus)) {
+            status.setStatus(SeckillOrderStatus.COMPLETED);
+        } else if ("FAILED".equals(pipelineStatus)) {
+            status.setStatus(SeckillOrderStatus.FAILED);
+        } else {
+            status.setStatus(SeckillOrderStatus.PROCESSING);
+        }
+        return status;
+    }
+
+    private SeckillOrderStatusDTO notFound(Long orderId) {
+        SeckillOrderStatusDTO status = new SeckillOrderStatusDTO();
+        status.setOrderId(orderId);
+        status.setStatus(SeckillOrderStatus.NOT_FOUND);
+        return status;
+    }
+
+    private boolean belongsToUser(Object storedUserId, Long userId) {
+        return storedUserId != null && String.valueOf(userId).equals(String.valueOf(storedUserId));
+    }
+
+    private Long readLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 }

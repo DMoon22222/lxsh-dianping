@@ -56,7 +56,11 @@ public class PendingOrderService {
         String dataKey = dataKey(orderId);
         Object status = stringRedisTemplate.opsForHash().get(dataKey, "status");
 
-        if ("ROUTE_FAILED".equals(status) || "BROKER_NACK".equals(status)) {
+        if ("ROUTE_FAILED".equals(status)
+                || "BROKER_NACK".equals(status)
+                || "CONSUMING".equals(status)
+                || "ORDER_CREATED".equals(status)
+                || "FAILED".equals(status)) {
             return;
         }
 
@@ -177,6 +181,26 @@ public class PendingOrderService {
     }
 
     /**
+     * 记录消费者开始处理的时间。Confirm 回调可能晚于消费开始，因此不能让
+     * Confirm 回调把 CONSUMING 覆盖回 SENT。
+     */
+    public void markConsuming(Long orderId, long consumeStartedAt) {
+        String dataKey = dataKey(orderId);
+        Object status = stringRedisTemplate.opsForHash().get(dataKey, "status");
+        if ("ORDER_CREATED".equals(status) || "FAILED".equals(status)) {
+            return;
+        }
+
+        stringRedisTemplate.opsForHash().put(dataKey, "status", "CONSUMING");
+        stringRedisTemplate.opsForHash().putIfAbsent(
+                dataKey,
+                "consumeStartTime",
+                String.valueOf(consumeStartedAt)
+        );
+        stringRedisTemplate.expire(dataKey, Duration.ofSeconds(DATA_TTL_SECONDS));
+    }
+
+    /**
      * 订单已经确定创建成功，清理待补偿状态
      * 从 seckill:pending 移除 orderId
      * status = ORDER_CREATED
@@ -188,9 +212,46 @@ public class PendingOrderService {
      */
 
     public void removePending(Long orderId) {
+        removePending(orderId, System.currentTimeMillis());
+    }
+
+    /**
+     * 在 MySQL 事务成功返回后调用，记录可用于端到端压测的完成时间。
+     */
+    public void removePending(Long orderId, long dbCommittedAt) {
+        String dataKey = dataKey(orderId);
+        Long acceptedAt = readLong(dataKey, "createTime");
+        Long consumeStartedAt = readLong(dataKey, "consumeStartTime");
+
         stringRedisTemplate.opsForZSet().remove(PENDING_KEY, orderId.toString());
-        stringRedisTemplate.opsForHash().put(dataKey(orderId), "status", "ORDER_CREATED");
-        stringRedisTemplate.expire(dataKey(orderId), Duration.ofSeconds(DATA_TTL_SECONDS));
+        stringRedisTemplate.opsForHash().put(dataKey, "status", "ORDER_CREATED");
+        stringRedisTemplate.opsForHash().put(
+                dataKey,
+                "dbCommittedTime",
+                String.valueOf(dbCommittedAt)
+        );
+        if (acceptedAt != null) {
+            stringRedisTemplate.opsForHash().put(
+                    dataKey,
+                    "endToEndMillis",
+                    String.valueOf(Math.max(0L, dbCommittedAt - acceptedAt))
+            );
+        }
+        if (acceptedAt != null && consumeStartedAt != null) {
+            stringRedisTemplate.opsForHash().put(
+                    dataKey,
+                    "queueDelayMillis",
+                    String.valueOf(Math.max(0L, consumeStartedAt - acceptedAt))
+            );
+        }
+        if (consumeStartedAt != null) {
+            stringRedisTemplate.opsForHash().put(
+                    dataKey,
+                    "dbProcessMillis",
+                    String.valueOf(Math.max(0L, dbCommittedAt - consumeStartedAt))
+            );
+        }
+        stringRedisTemplate.expire(dataKey, Duration.ofSeconds(DATA_TTL_SECONDS));
     }
 
     /**
@@ -241,5 +302,17 @@ public class PendingOrderService {
             return "";
         }
         return reason.length() > 500 ? reason.substring(0, 500) : reason;
+    }
+
+    private Long readLong(String dataKey, String field) {
+        Object value = stringRedisTemplate.opsForHash().get(dataKey, field);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

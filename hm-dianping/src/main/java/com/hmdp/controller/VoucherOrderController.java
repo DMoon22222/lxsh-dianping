@@ -2,9 +2,12 @@ package com.hmdp.controller;
 
 
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.ratelimit.RateLimit;
 import com.hmdp.ratelimit.RateLimitScope;
 import com.hmdp.service.IVoucherOrderService;
+import com.hmdp.utils.UserHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,5 +40,17 @@ public class VoucherOrderController {
     @PostMapping("seckill/{id}")
     public Result seckillVoucher(@PathVariable("id") Long voucherId) {
         return voucherOrderService.seckillVoucher(voucherId);
+    }
+
+    /**
+     * 供客户端轮询异步订单的最终处理状态，也可用于端到端压测。
+     */
+    @GetMapping("status/{orderId}")
+    public Result querySeckillOrderStatus(@PathVariable Long orderId) {
+        UserDTO user = UserHolder.getUser();
+        if (user == null || user.getId() == null) {
+            return Result.fail("未登录");
+        }
+        return Result.ok(voucherOrderService.querySeckillOrderStatus(orderId, user.getId()));
     }
 }

@@ -62,6 +62,10 @@ public class VoucherOrderConsumer {
                         .getDeliveryTag();
 
         try {
+            pendingOrderService.markConsuming(
+                    orderMessage.getOrderId(),
+                    System.currentTimeMillis()
+            );
             VoucherOrder voucherOrder =
                     new VoucherOrder();
 
@@ -79,9 +83,12 @@ public class VoucherOrderConsumer {
 
             /*
              * 调用Service事务方法 把秒杀订单写入MySQL，并扣减MySQL库存
-             */
+            */
             voucherOrderService.createVouchOrder(voucherOrder);
-            pendingOrderService.removePending(orderMessage.getOrderId());
+            pendingOrderService.removePending(
+                    orderMessage.getOrderId(),
+                    System.currentTimeMillis()
+            );
             /*
              * 数据库事务成功后再ACK
              */
