@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.SeckillOrderStatusDTO;
 import com.hmdp.entity.VoucherOrder;
+import com.hmdp.event.OrderCreatedEvent;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.mq.PendingOrderService;
 import com.hmdp.mq.VoucherOrderMessage;
@@ -16,6 +17,7 @@ import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -43,6 +45,8 @@ public class VoucherOrderServiceImpl
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private PendingOrderService pendingOrderService;
+    @Resource
+    private ApplicationEventPublisher applicationEventPublisher;
 
     /**
      * RabbitMQ订单消息生产者
@@ -225,6 +229,15 @@ public class VoucherOrderServiceImpl
                     "数据库库存不足"
             );
         }
+        applicationEventPublisher.publishEvent(
+                new OrderCreatedEvent(
+                        this,
+                        voucherOrder.getId(),
+                        voucherOrder.getUserId(),
+                        voucherOrder.getVoucherId(),
+                        System.currentTimeMillis()
+                )
+        );
     }
 
     private SeckillOrderStatusDTO buildStatus(Long orderId, Map<Object, Object> data) {

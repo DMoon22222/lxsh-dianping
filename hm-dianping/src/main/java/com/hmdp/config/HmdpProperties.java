@@ -24,6 +24,8 @@ public class HmdpProperties {
 
     private SeckillProperties seckill = new SeckillProperties();
 
+    private OrderTask orderTask=new OrderTask();
+
     @Data
     public static class Cache {
         private Shop shop = new Shop();
@@ -107,5 +109,13 @@ public class HmdpProperties {
          * Whether seckill order creation should be sent to RabbitMQ asynchronously.
          */
         private boolean asyncEnabled = true;
+    }
+    @Data
+    public static class OrderTask{
+        private int corePoolSize=4;
+        private int maximumPoolSize=8;
+        private int queueCapacity=200;
+        private long keepAliveSeconds=60L;
+        private long monitorIntervalMs=30000L;
     }
 }

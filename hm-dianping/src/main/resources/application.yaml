@@ -71,6 +71,12 @@ hmdp:
     seckill:
       max-count: 300
       window-seconds: 1
+  order-task:
+    core-pool-size: 4
+    maximum-pool-size: 8
+    queue-capacity: 200
+    keep-alive-seconds: 60
+    monitor-interval-ms: 30000
   seckill:
     # RabbitMQ 异步下单对比压测开关：
     # true：Redis 预扣后发送 RabbitMQ，接口立即返回；
