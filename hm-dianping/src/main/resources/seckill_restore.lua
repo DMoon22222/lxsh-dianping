@@ -1,26 +1,32 @@
 local stockKey = KEYS[1]
-local orderKey = KEYS[2]
-local restoreKey = KEYS[3]
+local reservationKey = KEYS[2]
+local legacyOrderKey = KEYS[3]
 local pendingKey = KEYS[4]
 
 local userId = ARGV[1]
 local orderId = ARGV[2]
-local nowMills = ARGV[3]
--- 该脚本用于恢复redis中的库存
--- 1、防止重复恢复 setnx的含义是只有key不存在时才写入 SETNX key value
-if redis.call('SETNX',restoreKey,nowMills)==0 then
-    return 0
-end
--- 2、设置恢复标记的有效期 EXPIRE key seconds 设置有效期
-redis.call('EXPIRE',restoreKey,86400)
--- 3、检查用户是否存在于下单集合
-if redis.call('SISMEMBER',orderKey,userId)==1 then
-    -- 4、恢复Redis库存
+
+-- 只有当前 reservation 仍属于本 orderId 才能补偿。
+-- 这同时提供幂等性：成功补偿后 HDEL，后续重复消息不会再次加库存；
+-- 若用户已经拿到新的 reservation，旧 orderId 也不会误删新记录。
+if redis.call('HGET', reservationKey, userId) == orderId then
     redis.call('INCRBY',stockKey,1)
-    -- 5、删除一人一单标记 SREM key member 用户可以重新参与优惠券的秒杀
-    redis.call('SREM',orderKey,userId)
+    redis.call('HDEL',reservationKey,userId)
+    redis.call('ZREM',pendingKey,orderId)
+    return 1
 end
--- 6、删除待补偿记录
+
+-- 兼容升级前已经预扣、但尚未完成的订单。只有不存在新 reservation 时，
+-- 才允许按旧 Set 释放资格，绝不覆盖新版本 reservation。
+if not redis.call('HGET', reservationKey, userId)
+        and redis.call('SISMEMBER', legacyOrderKey, userId) == 1 then
+    redis.call('INCRBY',stockKey,1)
+    redis.call('SREM',legacyOrderKey,userId)
+    redis.call('ZREM',pendingKey,orderId)
+    return 1
+end
+
+-- 预占已被释放、已由其他订单持有或根本不存在，均不可修改库存。
 redis.call('ZREM',pendingKey,orderId)
 
-return 1
+return 0

@@ -170,13 +170,12 @@ public class PendingOrderService {
                 RESTORE_SCRIPT,
                 Arrays.asList(
                         "seckill:stock:" + voucherId,
+                        "seckill:reservation:" + voucherId,
                         "seckill:order:" + voucherId,
-                        "seckill:restore:" + orderId,
                         PENDING_KEY
                 ),
                 userId.toString(),
-                orderId.toString(),
-                String.valueOf(System.currentTimeMillis())
+                orderId.toString()
         );
     }
 

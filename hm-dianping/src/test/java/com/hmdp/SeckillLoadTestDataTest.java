@@ -89,9 +89,11 @@ class SeckillLoadTestDataTest {
                 .update();
 
         String stockKey = RedisConstants.SECKILL_STOCK_KEY + voucherId;
-        String orderKey = "seckill:order:" + voucherId;
+        String reservationKey = "seckill:reservation:" + voucherId;
+        String legacyOrderKey = "seckill:order:" + voucherId;
         stringRedisTemplate.delete(stockKey);
-        stringRedisTemplate.delete(orderKey);
+        stringRedisTemplate.delete(reservationKey);
+        stringRedisTemplate.delete(legacyOrderKey);
         stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(stock));
         clearPendingDataForVoucher(voucherId);
     }

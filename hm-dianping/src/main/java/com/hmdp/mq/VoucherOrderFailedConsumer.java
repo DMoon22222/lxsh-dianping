@@ -64,13 +64,12 @@ public class VoucherOrderFailedConsumer {
                     RESTORE_SCRIPT,
                     Arrays.asList(
                             "seckill:stock:" + orderMessage.getVoucherId(),
+                            "seckill:reservation:" + orderMessage.getVoucherId(),
                             "seckill:order:" + orderMessage.getVoucherId(),
-                            "seckill:restore:" + orderId,
                             PendingOrderService.PENDING_KEY
                     ),
                     orderMessage.getUserId().toString(),
-                    orderId.toString(),
-                    String.valueOf(System.currentTimeMillis())
+                    orderId.toString()
             );
 
             if (restored == null) {

@@ -57,7 +57,9 @@ public class VoucherOrderServiceImpl
     @Value("${hmdp.seckill.async-enabled:true}")
     private boolean seckillAsyncEnabled;
 
-    private static final DefaultRedisScript<Long>
+    private static final String EXISTING_ORDER_PREFIX = "EXISTS:";
+
+    private static final DefaultRedisScript<String>
             SECKILL_SCRIPT;
 
     static {
@@ -69,7 +71,7 @@ public class VoucherOrderServiceImpl
         );
 
         SECKILL_SCRIPT.setResultType(
-                Long.class
+                String.class
         );
     }
 
@@ -82,10 +84,11 @@ public class VoucherOrderServiceImpl
         Long orderId = snowflakeIdGenerator.nextId();
         long now = System.currentTimeMillis();
 
-        Long result = stringRedisTemplate.execute(
+        String result = stringRedisTemplate.execute(
                 SECKILL_SCRIPT,
                 Arrays.asList(
                         "seckill:stock:" + voucherId,
+                        "seckill:reservation:" + voucherId,
                         "seckill:order:" + voucherId,
                         "seckill:pending",
                         "seckill:pending:data:" + orderId
@@ -100,9 +103,25 @@ public class VoucherOrderServiceImpl
             return Result.fail("秒杀服务异常");
         }
 
-        int code = result.intValue();
-        if (code != 0) {
-            return Result.fail(code == 1 ? "库存不足" : "不能重复下单");
+        if (result.startsWith(EXISTING_ORDER_PREFIX)) {
+            // Lua 返回已有 reservation 的订单号，不再产生第二条 MQ 消息，
+            // 使客户端超时重试保持幂等。
+            try {
+                return Result.ok(Long.valueOf(
+                        result.substring(EXISTING_ORDER_PREFIX.length())
+                ));
+            } catch (NumberFormatException e) {
+                log.error("Redis reservation 中的订单号格式非法，result={}", result, e);
+                return Result.fail("秒杀服务异常");
+            }
+        }
+
+        if ("LEGACY_EXISTS".equals(result)) {
+            return Result.fail("不能重复下单");
+        }
+
+        if (!"0".equals(result)) {
+            return Result.fail("1".equals(result) ? "库存不足" : "秒杀请求异常");
         }
 
         if (!seckillAsyncEnabled) {
