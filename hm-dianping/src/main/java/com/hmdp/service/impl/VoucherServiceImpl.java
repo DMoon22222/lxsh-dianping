@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Voucher;
 import com.hmdp.mapper.VoucherMapper;
+import com.hmdp.mq.SeckillRedisKeys;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherService;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.util.List;
 
-import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
 
 /**
  * <p>
@@ -54,7 +54,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         seckillVoucherService.save(seckillVoucher);
         //保存秒杀库存到Redis中
         stringRedisTemplate.opsForValue()
-                .set(SECKILL_STOCK_KEY+voucher.getId(),
+                .set(SeckillRedisKeys.stockKey(voucher.getId()),
                         voucher.getStock().toString());
 
     }

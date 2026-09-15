@@ -54,7 +54,7 @@ public class VoucherOrderFailedConsumer {
             boolean exists = voucherOrderService.getById(orderId) != null;
 
             if (exists) {
-                pendingOrderService.removePending(orderId);
+                pendingOrderService.removePending(orderMessage.getVoucherId(), orderId);
                 channel.basicAck(tag, false);
                 log.info("失败队列订单已在数据库存在，已清理待处理记录，orderId={}", orderId);
                 return;
@@ -63,10 +63,10 @@ public class VoucherOrderFailedConsumer {
             Long restored = stringRedisTemplate.execute(
                     RESTORE_SCRIPT,
                     Arrays.asList(
-                            "seckill:stock:" + orderMessage.getVoucherId(),
-                            "seckill:reservation:" + orderMessage.getVoucherId(),
-                            "seckill:order:" + orderMessage.getVoucherId(),
-                            PendingOrderService.PENDING_KEY
+                            SeckillRedisKeys.stockKey(orderMessage.getVoucherId()),
+                            SeckillRedisKeys.reservationKey(orderMessage.getVoucherId()),
+                            SeckillRedisKeys.legacyOrderKey(orderMessage.getVoucherId()),
+                            SeckillRedisKeys.pendingKey(orderMessage.getVoucherId())
                     ),
                     orderMessage.getUserId().toString(),
                     orderId.toString()
@@ -77,6 +77,7 @@ public class VoucherOrderFailedConsumer {
             }
 
             pendingOrderService.markFailed(
+                    orderMessage.getVoucherId(),
                     orderId,
                     "consume failed, redis restored=" + restored
             );

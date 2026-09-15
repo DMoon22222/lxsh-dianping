@@ -30,5 +30,5 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
     void createVouchOrder(VoucherOrder voucherOrder);
 
     /** 查询当前用户的秒杀订单异步处理状态。 */
-    SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId);
+    SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId, Long voucherId);
 }

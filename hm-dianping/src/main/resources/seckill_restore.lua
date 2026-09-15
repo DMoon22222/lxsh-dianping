@@ -1,3 +1,4 @@
+-- KEYS 均带相同的 {voucherId} Hash Tag，以兼容 Redis Cluster 多 Key Lua。
 local stockKey = KEYS[1]
 local reservationKey = KEYS[2]
 local legacyOrderKey = KEYS[3]

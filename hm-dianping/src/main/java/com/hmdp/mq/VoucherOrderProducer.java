@@ -31,6 +31,8 @@ public class VoucherOrderProducer
         implements RabbitTemplate.ConfirmCallback,
         RabbitTemplate.ReturnCallback {
 
+    private static final String ORDER_CORRELATION_SEPARATOR = ":";
+
     @Resource
     private RabbitTemplate rabbitTemplate;
     @Resource
@@ -50,8 +52,9 @@ public class VoucherOrderProducer
      */
     public void sendOrderMessage(VoucherOrderMessage orderMessage) {
 
-        String messageId =
-                orderMessage.getOrderId().toString();
+        String messageId = orderMessage.getOrderId()
+                + ORDER_CORRELATION_SEPARATOR
+                + orderMessage.getVoucherId();
 
         CorrelationData correlationData =
                 new CorrelationData(messageId);
@@ -102,23 +105,21 @@ public class VoucherOrderProducer
             return;
         }
 
-        Long orderId;
-        try {
-            orderId = Long.valueOf(correlationId);
-        } catch (NumberFormatException e) {
+        OrderCorrelation correlation = parseOrderCorrelation(correlationId);
+        if (correlation == null) {
             log.warn("RabbitMQ Confirm 回调包含未知 CorrelationData，correlationId={}，ack={}，cause={}",
                     correlationId, ack, cause);
             return;
         }
 
         if (ack) {
-            pendingOrderService.markSendSuccess(orderId);
-            log.debug("RabbitMQ Broker 已接收订单消息，orderId={}", orderId);
+            pendingOrderService.markSendSuccess(correlation.voucherId, correlation.orderId);
+            log.debug("RabbitMQ Broker 已接收订单消息，orderId={}", correlation.orderId);
             return;
         }
 
-        pendingOrderService.markSendFailed(orderId, cause);
-        log.error("RabbitMQ Broker 接收订单消息失败，orderId={}，cause={}", orderId, cause);
+        pendingOrderService.markSendFailed(correlation.voucherId, correlation.orderId, cause);
+        log.error("RabbitMQ Broker 接收订单消息失败，orderId={}，cause={}", correlation.orderId, cause);
     }
 
     /**
@@ -155,6 +156,28 @@ public class VoucherOrderProducer
 
         pendingOrderService.markRouteFailed(orderMessage, reason);
         log.error("RabbitMQ 订单消息无法路由，orderId={}，{}", orderMessage.getOrderId(), reason);
+    }
+
+    private OrderCorrelation parseOrderCorrelation(String correlationId) {
+        String[] parts = correlationId.split(ORDER_CORRELATION_SEPARATOR, 2);
+        if (parts.length != 2) {
+            return null;
+        }
+        try {
+            return new OrderCorrelation(Long.valueOf(parts[0]), Long.valueOf(parts[1]));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static final class OrderCorrelation {
+        private final Long orderId;
+        private final Long voucherId;
+
+        private OrderCorrelation(Long orderId, Long voucherId) {
+            this.orderId = orderId;
+            this.voucherId = voucherId;
+        }
     }
 }
 

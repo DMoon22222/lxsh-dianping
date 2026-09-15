@@ -1,6 +1,8 @@
 package com.hmdp.mq;
 
 import com.hmdp.service.IVoucherOrderService;
+import com.hmdp.entity.SeckillVoucher;
+import com.hmdp.service.ISeckillVoucherService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,7 @@ import org.springframework.util.CollectionUtils;
 import javax.annotation.Resource;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
 
 @Component
 @Slf4j
@@ -26,54 +29,60 @@ public class PendingOrderRepublishTask {
     @Resource
     private IVoucherOrderService voucherOrderService;
 
+    @Resource
+    private ISeckillVoucherService seckillVoucherService;
+
     @Scheduled(fixedDelay = 10000)
     public void republishPendingOrders() {
         long now = System.currentTimeMillis();
-        Set<String> orderIds = pendingOrderService.listDueOrderIds(now, BATCH_SIZE);
-        if (CollectionUtils.isEmpty(orderIds)) {
-            return;
-        }
+        List<SeckillVoucher> vouchers = seckillVoucherService.list();
+        for (SeckillVoucher voucher : vouchers) {
+            Long voucherId = voucher.getVoucherId();
+            Set<String> orderIds = pendingOrderService.listDueOrderIds(voucherId, now, BATCH_SIZE);
+            if (CollectionUtils.isEmpty(orderIds)) {
+                continue;
+            }
 
-        for (String orderIdText : orderIds) {
-            Long orderId = Long.valueOf(orderIdText);
-            try {
-                republishOne(orderId);
-            } catch (Exception e) {
-                pendingOrderService.markSendFailed(
-                        orderId,
-                        "republish exception: " + e.getMessage()
-                );
-                log.error("补偿重投订单消息异常，orderId={}", orderId, e);
+            for (String orderIdText : orderIds) {
+                Long orderId = Long.valueOf(orderIdText);
+                try {
+                    republishOne(voucherId, orderId);
+                } catch (Exception e) {
+                    pendingOrderService.markSendFailed(
+                            voucherId,
+                            orderId,
+                            "republish exception: " + e.getMessage()
+                    );
+                    log.error("补偿重投订单消息异常，orderId={}", orderId, e);
+                }
             }
         }
     }
 
-    private void republishOne(Long orderId) {
+    private void republishOne(Long voucherId, Long orderId) {
         boolean exists = voucherOrderService.getById(orderId) != null;
 
         if (exists) {
-            pendingOrderService.removePending(orderId);
+            pendingOrderService.removePending(voucherId, orderId);
             log.info("PENDING 订单已在数据库存在，清理待重投记录，orderId={}", orderId);
             return;
         }
 
-        Map<Object, Object> data = pendingOrderService.getData(orderId);
+        Map<Object, Object> data = pendingOrderService.getData(voucherId, orderId);
         if (data == null || data.isEmpty()) {
-            pendingOrderService.markFailed(orderId, "pending data missing");
+            pendingOrderService.markFailed(voucherId, orderId, "pending data missing");
             return;
         }
 
         int retryCount = parseInt(data.get("retryCount"));
         if (retryCount >= MAX_REPUBLISH_COUNT) {
-            pendingOrderService.markFailed(orderId, "republish retry exhausted");
+            pendingOrderService.markFailed(voucherId, orderId, "republish retry exhausted");
             log.error("订单消息重投超过上限，转入 FAILED，orderId={}", orderId);
             return;
         }
 
         Long userId = Long.valueOf(String.valueOf(data.get("userId")));
-        Long voucherId = Long.valueOf(String.valueOf(data.get("voucherId")));
-
-        pendingOrderService.beforeRepublish(orderId);
+        pendingOrderService.beforeRepublish(voucherId, orderId);
         voucherOrderProducer.sendOrderMessage(new VoucherOrderMessage(orderId, userId, voucherId));
 
         log.warn("已重投 PENDING 订单消息，orderId={}，retryCount={}", orderId, retryCount + 1);

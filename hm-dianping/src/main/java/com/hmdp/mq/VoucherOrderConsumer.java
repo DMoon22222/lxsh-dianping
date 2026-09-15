@@ -63,6 +63,7 @@ public class VoucherOrderConsumer {
 
         try {
             pendingOrderService.markConsuming(
+                    orderMessage.getVoucherId(),
                     orderMessage.getOrderId(),
                     System.currentTimeMillis()
             );
@@ -86,6 +87,7 @@ public class VoucherOrderConsumer {
             */
             voucherOrderService.createVouchOrder(voucherOrder);
             pendingOrderService.removePending(
+                    orderMessage.getVoucherId(),
                     orderMessage.getOrderId(),
                     System.currentTimeMillis()
             );
@@ -105,7 +107,10 @@ public class VoucherOrderConsumer {
              * 重复消息不能继续重试，
              * 应直接确认。
              */
-            pendingOrderService.removePending(orderMessage.getOrderId());
+            pendingOrderService.removePending(
+                    orderMessage.getVoucherId(),
+                    orderMessage.getOrderId()
+            );
             channel.basicAck(deliveryTag, false);
 
             log.warn("订单重复消费，已被唯一索引拦截，orderId={}", orderMessage.getOrderId());

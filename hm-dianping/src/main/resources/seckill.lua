@@ -1,8 +1,9 @@
--- KEYS[1] = seckill:stock:voucherId             -- 库存 key
--- KEYS[2] = seckill:reservation:voucherId       -- 用户 -> orderId 的预占 Hash key
--- KEYS[3] = seckill:order:voucherId              -- 旧版本已下单用户集合（兼容升级）
--- KEYS[4] = seckill:pending                      -- 待发送订单 ZSet
--- KEYS[5] = seckill:pending:data:{orderId}       -- 待发送订单详情 Hash
+-- 下列所有 Key 均带相同的 {voucherId} Hash Tag，以兼容 Redis Cluster 多 Key Lua。
+-- KEYS[1] = seckill:stock:{voucherId}             -- 库存 key
+-- KEYS[2] = seckill:reservation:{voucherId}       -- 用户 -> orderId 的预占 Hash key
+-- KEYS[3] = seckill:order:{voucherId}             -- 旧版本已下单用户集合（兼容升级）
+-- KEYS[4] = seckill:pending:{voucherId}           -- 待发送订单 ZSet
+-- KEYS[5] = seckill:pending:data:{voucherId}:id   -- 待发送订单详情 Hash
 -- ARGV[1]: userId
 -- ARGV[2]: voucherId
 -- ARGV[3]: orderId
@@ -30,13 +31,13 @@ if redis.call('SISMEMBER', legacyOrderKey, userId) == 1 then
     return 'LEGACY_EXISTS'
 end
 
--- 2. 判断库存 GET seckill:stock:voucherId
+-- 2. 判断库存 GET seckill:stock:{voucherId}
 local stock = redis.call('GET', stockKey)
 if stock == false or tonumber(stock) <= 0 then
     return '1'
 end
 
--- 3. 预扣库存 INCRBY seckill:stock:voucherId -1
+-- 3. 预扣库存 INCRBY seckill:stock:{voucherId} -1
 redis.call('INCRBY', stockKey, -1)
 -- 4、记录本次预占的所有者 HSET reservation userId orderId
 redis.call('HSET', reservationKey, userId, orderId)

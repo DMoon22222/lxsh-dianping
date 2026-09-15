@@ -2,6 +2,7 @@ package com.hmdp.controller;
 
 import cn.hutool.json.JSONUtil;
 import com.hmdp.cache.ShopCacheService;
+import com.hmdp.mq.SeckillRedisKeys;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.Follow;
@@ -38,7 +39,6 @@ import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
 import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
 import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TYPE_KEY;
 import static com.hmdp.utils.RedisConstants.FEED_KEY;
-import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
 import static com.hmdp.utils.RedisConstants.SHOP_GEO_KEY;
 
 @RestController
@@ -145,7 +145,7 @@ public class RedisInitController {
         List<SeckillVoucher> vouchers = seckillVoucherService.list();
         for (SeckillVoucher voucher : vouchers) {
             stringRedisTemplate.opsForValue().set(
-                    SECKILL_STOCK_KEY + voucher.getVoucherId(),
+                    SeckillRedisKeys.stockKey(voucher.getVoucherId()),
                     String.valueOf(voucher.getStock())
             );
         }

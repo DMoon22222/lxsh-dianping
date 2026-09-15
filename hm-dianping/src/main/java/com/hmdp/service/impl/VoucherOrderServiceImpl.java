@@ -7,6 +7,7 @@ import com.hmdp.entity.VoucherOrder;
 import com.hmdp.event.OrderCreatedEvent;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.mq.PendingOrderService;
+import com.hmdp.mq.SeckillRedisKeys;
 import com.hmdp.mq.VoucherOrderMessage;
 import com.hmdp.mq.VoucherOrderProducer;
 import com.hmdp.service.ISeckillVoucherService;
@@ -87,11 +88,11 @@ public class VoucherOrderServiceImpl
         String result = stringRedisTemplate.execute(
                 SECKILL_SCRIPT,
                 Arrays.asList(
-                        "seckill:stock:" + voucherId,
-                        "seckill:reservation:" + voucherId,
-                        "seckill:order:" + voucherId,
-                        "seckill:pending",
-                        "seckill:pending:data:" + orderId
+                        SeckillRedisKeys.stockKey(voucherId),
+                        SeckillRedisKeys.reservationKey(voucherId),
+                        SeckillRedisKeys.legacyOrderKey(voucherId),
+                        SeckillRedisKeys.pendingKey(voucherId),
+                        SeckillRedisKeys.pendingDataKey(voucherId, orderId)
                 ),
                 userId.toString(),
                 voucherId.toString(),
@@ -135,6 +136,7 @@ public class VoucherOrderServiceImpl
             voucherOrderProducer.sendOrderMessage(orderMessage);
         } catch (AmqpException e) {
             pendingOrderService.markSendFailed(
+                    voucherId,
                     orderId,
                     "convertAndSend exception: " + e.getMessage()
             );
@@ -153,24 +155,24 @@ public class VoucherOrderServiceImpl
 
         try {
             createVouchOrder(voucherOrder);
-            pendingOrderService.removePending(orderId);
+            pendingOrderService.removePending(voucherId, orderId);
             return Result.ok(orderId);
         } catch (DuplicateKeyException e) {
             pendingOrderService.restorePreDeduct(orderId, userId, voucherId);
-            pendingOrderService.markFailed(orderId, "sync duplicate order: " + e.getMessage());
+            pendingOrderService.markFailed(voucherId, orderId, "sync duplicate order: " + e.getMessage());
             log.warn("同步创建秒杀订单失败，用户重复下单，orderId={}", orderId, e);
             return Result.fail("不能重复下单");
         } catch (Exception e) {
             pendingOrderService.restorePreDeduct(orderId, userId, voucherId);
-            pendingOrderService.markFailed(orderId, "sync create order failed: " + e.getMessage());
+            pendingOrderService.markFailed(voucherId, orderId, "sync create order failed: " + e.getMessage());
             log.error("同步创建秒杀订单异常，orderId={}", orderId, e);
             return Result.fail("秒杀服务异常");
         }
     }
 
     @Override
-    public SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId) {
-        Map<Object, Object> pendingData = pendingOrderService.getData(orderId);
+    public SeckillOrderStatusDTO querySeckillOrderStatus(Long orderId, Long userId, Long voucherId) {
+        Map<Object, Object> pendingData = pendingOrderService.getData(voucherId, orderId);
         if (!pendingData.isEmpty()) {
             if (!belongsToUser(pendingData.get("userId"), userId)) {
                 return notFound(orderId);

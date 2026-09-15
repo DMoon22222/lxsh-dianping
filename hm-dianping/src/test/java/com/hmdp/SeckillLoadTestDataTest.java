@@ -9,10 +9,11 @@ import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.User;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mq.PendingOrderService;
+import com.hmdp.mq.SeckillRedisKeys;
+import com.hmdp.utils.RedisConstants;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IUserService;
 import com.hmdp.service.IVoucherOrderService;
-import com.hmdp.utils.RedisConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -88,9 +89,9 @@ class SeckillLoadTestDataTest {
                 .eq("voucher_id", voucherId)
                 .update();
 
-        String stockKey = RedisConstants.SECKILL_STOCK_KEY + voucherId;
-        String reservationKey = "seckill:reservation:" + voucherId;
-        String legacyOrderKey = "seckill:order:" + voucherId;
+        String stockKey = SeckillRedisKeys.stockKey(voucherId);
+        String reservationKey = SeckillRedisKeys.reservationKey(voucherId);
+        String legacyOrderKey = SeckillRedisKeys.legacyOrderKey(voucherId);
         stringRedisTemplate.delete(stockKey);
         stringRedisTemplate.delete(reservationKey);
         stringRedisTemplate.delete(legacyOrderKey);
@@ -99,21 +100,16 @@ class SeckillLoadTestDataTest {
     }
 
     private void clearPendingDataForVoucher(long voucherId) {
+        stringRedisTemplate.delete(SeckillRedisKeys.pendingKey(voucherId));
+        stringRedisTemplate.delete(SeckillRedisKeys.failedKey(voucherId));
         java.util.Set<String> dataKeys = stringRedisTemplate.keys(
-                PendingOrderService.DATA_KEY_PREFIX + "*"
+                SeckillRedisKeys.pendingDataPattern(voucherId)
         );
         if (dataKeys == null) {
             return;
         }
 
         for (String dataKey : dataKeys) {
-            Object storedVoucherId = stringRedisTemplate.opsForHash().get(dataKey, "voucherId");
-            if (!String.valueOf(voucherId).equals(String.valueOf(storedVoucherId))) {
-                continue;
-            }
-            String orderId = dataKey.substring(PendingOrderService.DATA_KEY_PREFIX.length());
-            stringRedisTemplate.opsForZSet().remove(PendingOrderService.PENDING_KEY, orderId);
-            stringRedisTemplate.opsForZSet().remove(PendingOrderService.FAILED_KEY, orderId);
             stringRedisTemplate.delete(dataKey);
         }
     }
