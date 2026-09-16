@@ -106,16 +106,8 @@ public class VoucherOrderServiceImpl
         }
 
         if (result.startsWith(EXISTING_ORDER_PREFIX)) {
-            // Lua 返回已有 reservation 的订单号，不再产生第二条 MQ 消息，
-            // 使客户端超时重试保持幂等。
-            try {
-                return Result.ok(Long.valueOf(
-                        result.substring(EXISTING_ORDER_PREFIX.length())
-                ));
-            } catch (NumberFormatException e) {
-                log.error("Redis reservation 中的订单号格式非法，result={}", result, e);
-                return Result.fail("秒杀服务异常");
-            }
+            // Lua 已确认该用户拥有同一张券的 reservation；不重复扣库存或发送 MQ。
+            return Result.fail("该用户已经抢到优惠券，无法再抢");
         }
 
         if ("LEGACY_EXISTS".equals(result)) {
