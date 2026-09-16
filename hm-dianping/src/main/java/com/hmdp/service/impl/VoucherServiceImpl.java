@@ -13,7 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -56,6 +59,24 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         stringRedisTemplate.opsForValue()
                 .set(SeckillRedisKeys.stockKey(voucher.getId()),
                         voucher.getStock().toString());
+        cacheActivityTime(voucher.getId(), voucher.getBeginTime(), voucher.getEndTime());
 
+    }
+
+    private void cacheActivityTime(Long voucherId,
+                                   java.time.LocalDateTime beginTime,
+                                   java.time.LocalDateTime endTime) {
+        if (beginTime == null || endTime == null) {
+            throw new IllegalArgumentException("秒杀活动必须设置开始和结束时间");
+        }
+        Map<String, String> activityTime = new HashMap<>();
+        activityTime.put("beginTimeMillis", String.valueOf(beginTime
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+        activityTime.put("endTimeMillis", String.valueOf(endTime
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+        stringRedisTemplate.opsForHash().putAll(
+                SeckillRedisKeys.activityTimeKey(voucherId),
+                activityTime
+        );
     }
 }

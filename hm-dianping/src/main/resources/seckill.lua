@@ -4,6 +4,7 @@
 -- KEYS[3] = seckill:order:{voucherId}             -- 旧版本已下单用户集合（兼容升级）
 -- KEYS[4] = seckill:pending:{voucherId}           -- 待发送订单 ZSet
 -- KEYS[5] = seckill:pending:data:{voucherId}:id   -- 待发送订单详情 Hash
+-- KEYS[6] = seckill:time:{voucherId}              -- 活动起止时间 Hash
 -- ARGV[1]: userId
 -- ARGV[2]: voucherId
 -- ARGV[3]: orderId
@@ -13,6 +14,7 @@ local reservationKey = KEYS[2]
 local legacyOrderKey = KEYS[3]
 local pendingKey = KEYS[4]
 local pendingDataKey = KEYS[5]
+local activityTimeKey = KEYS[6]
 
 local userId = ARGV[1]
 local voucherId = ARGV[2]
@@ -29,6 +31,23 @@ end
 -- 兼容升级前已写入 Set 的订单，避免旧资格在升级后被绕过。
 if redis.call('SISMEMBER', legacyOrderKey, userId) == 1 then
     return 'LEGACY_EXISTS'
+end
+
+-- 仅限制新订单。已成功预占的请求应始终能取回原订单号，保证客户端超时重试幂等。
+-- 使用 Redis 服务端时间，避免应用服务器时钟漂移，且与库存预扣保持原子性。
+local beginTimeMillis = redis.call('HGET', activityTimeKey, 'beginTimeMillis')
+local endTimeMillis = redis.call('HGET', activityTimeKey, 'endTimeMillis')
+if not beginTimeMillis or not endTimeMillis then
+    return '4'
+end
+
+local redisTime = redis.call('TIME')
+local redisNowMillis = tonumber(redisTime[1]) * 1000 + math.floor(tonumber(redisTime[2]) / 1000)
+if redisNowMillis < tonumber(beginTimeMillis) then
+    return '2'
+end
+if redisNowMillis > tonumber(endTimeMillis) then
+    return '3'
 end
 
 -- 2. 判断库存 GET seckill:stock:{voucherId}

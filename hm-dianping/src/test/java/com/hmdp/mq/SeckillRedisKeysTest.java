@@ -12,6 +12,7 @@ class SeckillRedisKeysTest {
         String tag = "{" + voucherId + "}";
 
         assertEquals(tag, hashTag(SeckillRedisKeys.stockKey(voucherId)));
+        assertEquals(tag, hashTag(SeckillRedisKeys.activityTimeKey(voucherId)));
         assertEquals(tag, hashTag(SeckillRedisKeys.reservationKey(voucherId)));
         assertEquals(tag, hashTag(SeckillRedisKeys.legacyOrderKey(voucherId)));
         assertEquals(tag, hashTag(SeckillRedisKeys.pendingKey(voucherId)));

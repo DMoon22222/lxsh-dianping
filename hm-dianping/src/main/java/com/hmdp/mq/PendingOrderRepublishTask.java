@@ -76,8 +76,18 @@ public class PendingOrderRepublishTask {
 
         int retryCount = parseInt(data.get("retryCount"));
         if (retryCount >= MAX_REPUBLISH_COUNT) {
-            pendingOrderService.markFailed(voucherId, orderId, "republish retry exhausted");
-            log.error("订单消息重投超过上限，转入 FAILED，orderId={}", orderId);
+            Long userId = Long.valueOf(String.valueOf(data.get("userId")));
+            Long restored = pendingOrderService.restorePreDeduct(orderId, userId, voucherId);
+            if (restored == null) {
+                throw new IllegalStateException("Redis恢复脚本未返回结果，orderId=" + orderId);
+            }
+            pendingOrderService.markFailed(
+                    voucherId,
+                    orderId,
+                    "republish retry exhausted, redis restored=" + restored
+            );
+            log.error("订单消息重投超过上限，已恢复 Redis 预扣并转入 FAILED，orderId={}, redisRestored={}",
+                    orderId, restored);
             return;
         }
 

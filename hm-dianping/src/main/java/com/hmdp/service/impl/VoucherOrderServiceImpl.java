@@ -92,7 +92,8 @@ public class VoucherOrderServiceImpl
                         SeckillRedisKeys.reservationKey(voucherId),
                         SeckillRedisKeys.legacyOrderKey(voucherId),
                         SeckillRedisKeys.pendingKey(voucherId),
-                        SeckillRedisKeys.pendingDataKey(voucherId, orderId)
+                        SeckillRedisKeys.pendingDataKey(voucherId, orderId),
+                        SeckillRedisKeys.activityTimeKey(voucherId)
                 ),
                 userId.toString(),
                 voucherId.toString(),
@@ -122,7 +123,7 @@ public class VoucherOrderServiceImpl
         }
 
         if (!"0".equals(result)) {
-            return Result.fail("1".equals(result) ? "库存不足" : "秒杀请求异常");
+            return Result.fail(seckillFailureMessage(result));
         }
 
         if (!seckillAsyncEnabled) {
@@ -309,5 +310,21 @@ public class VoucherOrderServiceImpl
 
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String seckillFailureMessage(String result) {
+        if ("1".equals(result)) {
+            return "库存不足";
+        }
+        if ("2".equals(result)) {
+            return "秒杀尚未开始";
+        }
+        if ("3".equals(result)) {
+            return "秒杀已经结束";
+        }
+        if ("4".equals(result)) {
+            return "秒杀活动未初始化";
+        }
+        return "秒杀请求异常";
     }
 }

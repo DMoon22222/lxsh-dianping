@@ -148,6 +148,18 @@ public class RedisInitController {
                     SeckillRedisKeys.stockKey(voucher.getVoucherId()),
                     String.valueOf(voucher.getStock())
             );
+            if (voucher.getBeginTime() == null || voucher.getEndTime() == null) {
+                throw new IllegalStateException("秒杀活动缺少开始或结束时间，voucherId=" + voucher.getVoucherId());
+            }
+            Map<String, String> activityTime = new LinkedHashMap<>();
+            activityTime.put("beginTimeMillis", String.valueOf(voucher.getBeginTime()
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+            activityTime.put("endTimeMillis", String.valueOf(voucher.getEndTime()
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+            stringRedisTemplate.opsForHash().putAll(
+                    SeckillRedisKeys.activityTimeKey(voucher.getVoucherId()),
+                    activityTime
+            );
         }
         return vouchers.size();
     }

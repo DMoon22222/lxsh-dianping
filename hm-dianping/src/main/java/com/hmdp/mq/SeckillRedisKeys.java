@@ -15,6 +15,15 @@ public final class SeckillRedisKeys {
         return "seckill:stock:" + tag(voucherId);
     }
 
+    /**
+     * 秒杀活动窗口 Hash，字段为 beginTimeMillis、endTimeMillis。
+     *
+     * <p>与库存使用相同 Hash Tag，使 Lua 在 Redis Cluster 中能原子校验时间和扣减库存。</p>
+     */
+    public static String activityTimeKey(Long voucherId) {
+        return "seckill:time:" + tag(voucherId);
+    }
+
     public static String reservationKey(Long voucherId) {
         return "seckill:reservation:" + tag(voucherId);
     }
