@@ -69,4 +69,13 @@ public final class RabbitMqConstants {
 
     public static final String CACHE_INVALIDATE_QUEUE_PREFIX =
             "hmdp.cache.invalidate.";
+
+    public static final String CACHE_INVALIDATE_PARKING_EXCHANGE =
+            "hmdp.cache.invalidate.parking.exchange";
+
+    public static final String CACHE_INVALIDATE_PARKING_QUEUE =
+            "hmdp.cache.invalidate.parking.queue";
+
+    public static final String CACHE_INVALIDATE_PARKING_ROUTING_KEY =
+            "cache.invalidate.parking";
 }

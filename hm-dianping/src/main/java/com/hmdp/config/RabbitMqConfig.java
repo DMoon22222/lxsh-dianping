@@ -1,5 +1,6 @@
 package com.hmdp.config;
 
+import com.hmdp.mq.CacheInvalidateMessagePublisher;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
@@ -160,7 +161,7 @@ public class RabbitMqConfig {
      */
     @Bean
     public MessageRecoverer failedOrderMessageRecoverer(
-            RabbitTemplate rabbitTemplate) {
+            @Qualifier("rabbitTemplate") RabbitTemplate rabbitTemplate) {
         RepublishMessageRecovererWithConfirms republishRecoverer =
                 new RepublishMessageRecovererWithConfirms(
                         rabbitTemplate,
@@ -181,7 +182,7 @@ public class RabbitMqConfig {
 
     @Bean
     public RetryOperationsInterceptor failedOrderRetryInterceptor(
-            MessageRecoverer failedOrderMessageRecoverer) {
+            @Qualifier("failedOrderMessageRecoverer") MessageRecoverer failedOrderMessageRecoverer) {
         return RetryInterceptorBuilder.stateless()
                 .maxAttempts(4)
                 .backOffOptions(1000, 2.0, 5000)
@@ -193,6 +194,7 @@ public class RabbitMqConfig {
     public SimpleRabbitListenerContainerFactory failedOrderRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
             MessageConverter messageConverter,
+            @Qualifier("failedOrderRetryInterceptor")
             RetryOperationsInterceptor failedOrderRetryInterceptor) {
         SimpleRabbitListenerContainerFactory factory =
                 new SimpleRabbitListenerContainerFactory();
@@ -231,6 +233,69 @@ public class RabbitMqConfig {
         return BindingBuilder
                 .bind(cacheInvalidateQueue)
                 .to(cacheInvalidateExchange);
+    }
+
+    @Bean
+    public DirectExchange cacheInvalidateParkingExchange() {
+        return new DirectExchange(
+                CACHE_INVALIDATE_PARKING_EXCHANGE,
+                true,
+                false
+        );
+    }
+
+    @Bean
+    public Queue cacheInvalidateParkingQueue() {
+        return QueueBuilder
+                .durable(CACHE_INVALIDATE_PARKING_QUEUE)
+                .build();
+    }
+
+    @Bean
+    public Binding cacheInvalidateParkingBinding() {
+        return BindingBuilder
+                .bind(cacheInvalidateParkingQueue())
+                .to(cacheInvalidateParkingExchange())
+                .with(CACHE_INVALIDATE_PARKING_ROUTING_KEY);
+    }
+
+    @Bean
+    public MessageRecoverer cacheInvalidateMessageRecoverer(
+            CacheInvalidateMessagePublisher cacheInvalidateMessagePublisher) {
+        return new RepublishMessageRecovererWithConfirms(
+                cacheInvalidateMessagePublisher.getRabbitTemplate(),
+                CACHE_INVALIDATE_PARKING_EXCHANGE,
+                CACHE_INVALIDATE_PARKING_ROUTING_KEY,
+                CachingConnectionFactory.ConfirmType.CORRELATED
+        );
+    }
+
+    @Bean
+    public RetryOperationsInterceptor cacheInvalidateRetryInterceptor(
+            @Qualifier("cacheInvalidateMessageRecoverer")
+            MessageRecoverer cacheInvalidateMessageRecoverer) {
+        return RetryInterceptorBuilder.stateless()
+                .maxAttempts(4)
+                .backOffOptions(1000, 2.0, 5000)
+                .recoverer(cacheInvalidateMessageRecoverer)
+                .build();
+    }
+
+    @Bean
+    public SimpleRabbitListenerContainerFactory cacheInvalidateRabbitListenerContainerFactory(
+            ConnectionFactory connectionFactory,
+            MessageConverter messageConverter,
+            @Qualifier("cacheInvalidateRetryInterceptor")
+            RetryOperationsInterceptor cacheInvalidateRetryInterceptor) {
+        SimpleRabbitListenerContainerFactory factory =
+                new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(messageConverter);
+        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        factory.setDefaultRequeueRejected(false);
+        factory.setPrefetchCount(20);
+        factory.setAdviceChain(cacheInvalidateRetryInterceptor);
+        return factory;
     }
 
     /**

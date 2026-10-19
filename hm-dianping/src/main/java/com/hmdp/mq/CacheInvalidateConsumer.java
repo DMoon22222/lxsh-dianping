@@ -1,15 +1,14 @@
 package com.hmdp.mq;
 
 import com.hmdp.cache.ShopCacheService;
-import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
 
@@ -23,31 +22,40 @@ public class CacheInvalidateConsumer {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
-    @RabbitListener(queues = "#{cacheInvalidateQueue.name}")
-    public void onCacheInvalidate(
-            CacheInvalidateMessage cacheMessage,
-            Message message,
-            Channel channel) throws IOException {
+    @RabbitListener(
+            queues = "#{cacheInvalidateQueue.name}",
+            containerFactory = "cacheInvalidateRabbitListenerContainerFactory"
+    )
+    public void onCacheInvalidate(CacheInvalidateMessage cacheMessage) {
+        if (!"shop".equals(cacheMessage.getCacheName())) {
+            log.warn("忽略未知缓存失效消息，message={}", cacheMessage);
+            return;
+        }
 
-        long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        Long shopId = Long.valueOf(cacheMessage.getKey());
+        List<Throwable> failures = new ArrayList<>();
 
         try {
-            if (!"shop".equals(cacheMessage.getCacheName())) {
-                log.warn("忽略未知缓存失效消息，message={}", cacheMessage);
-                channel.basicAck(deliveryTag, false);
-                return;
-            }
-
-            Long shopId = Long.valueOf(cacheMessage.getKey());
-
-            shopCacheService.invalidateLocal(shopId);
             stringRedisTemplate.delete(CACHE_SHOP_KEY + shopId);
-
-            channel.basicAck(deliveryTag, false);
-            log.info("商户缓存失效完成，shopId={}", shopId);
         } catch (Exception e) {
-            log.error("商户缓存失效失败，message={}", cacheMessage, e);
-            channel.basicNack(deliveryTag, false, true);
+            failures.add(e);
+            log.error("消费端删除Redis商户缓存失败，shopId={}", shopId, e);
         }
+
+        try {
+            shopCacheService.invalidateLocal(shopId);
+        } catch (Exception e) {
+            failures.add(e);
+            log.error("消费端清理Caffeine商户缓存失败，shopId={}", shopId, e);
+        }
+
+        if (!failures.isEmpty()) {
+            CacheInvalidationException aggregate = new CacheInvalidationException(
+                    "消费端商户缓存失效失败，shopId=" + shopId);
+            failures.forEach(aggregate::addSuppressed);
+            throw aggregate;
+        }
+
+        log.info("消费端商户缓存失效完成，shopId={}", shopId);
     }
 }

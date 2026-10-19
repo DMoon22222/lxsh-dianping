@@ -8,7 +8,7 @@ spring:
   main:
     banner-mode: console
   datasource:
-    driver-class-name: com.mysql.jdbc.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${HMDP_DATASOURCE_URL:jdbc:mysql://localhost:3306/hmdp?useSSL=false&serverTimezone=UTC}
     username: ${HMDP_DATASOURCE_USERNAME:hmdp_user}
     password: ${HMDP_DATASOURCE_PASSWORD:change-me}
@@ -28,7 +28,7 @@ spring:
     host: ${HMDP_RABBITMQ_HOST:localhost}
     port: ${HMDP_RABBITMQ_PORT:5672}
     username: ${HMDP_RABBITMQ_USERNAME:hmdp}
-    password: ${HMDP_RABBITMQ_PASSWORD:hmdp_mq_2026}
+    password: ${HMDP_RABBITMQ_PASSWORD:change-me}
     virtual-host: ${HMDP_RABBITMQ_VIRTUAL_HOST:/hmdp}
 
     publisher-confirm-type: correlated
@@ -54,6 +54,7 @@ logging:
   level:
     root: info
     com.hmdp: debug
+    com.hmdp.mapper.CacheInvalidationOutboxMapper: info
 
 hmdp:
   instance-id: app-1
@@ -61,6 +62,15 @@ hmdp:
     shop:
       # 压测对比时可改为 false，关闭 Caffeine 本地缓存，只走 Redis + MySQL。
       local-enabled: true
+    outbox:
+      # 商户缓存失效Outbox扫描、租约、重试和延迟双删参数。
+      scan-interval-ms: 1000
+      batch-size: 50
+      lease-seconds: 30
+      max-retries: 8
+      max-backoff-seconds: 60
+      double-delete-delay-ms: 1000
+      confirm-timeout-ms: 5000
   id-generator:
     # 同一数据中心内，每个应用实例必须使用不同的 worker-id。
     worker-id: 1

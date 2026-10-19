@@ -10,7 +10,7 @@ import com.hmdp.cache.ShopCacheService;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
-import com.hmdp.mq.CacheInvalidatePublisher;
+import com.hmdp.mq.CacheInvalidationOutboxService;
 import com.hmdp.service.IShopService;
 import com.hmdp.utils.CacheClient;
 import com.hmdp.utils.RedisData;
@@ -54,7 +54,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Resource
     private ShopCacheService shopCacheService;
     @Resource
-    private CacheInvalidatePublisher cacheInvalidatePublisher;
+    private CacheInvalidationOutboxService cacheInvalidationOutboxService;
 
     @Override
     public Result queryById(Long id) {
@@ -252,11 +252,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if(id == null){
             return Result.fail("商铺id不能为空");
         }
-        //1、更新数据库
-        updateById(shop);
+        // 1、更新MySQL。0行更新也必须按失败处理，不能返回伪成功。
+        boolean updated = updateById(shop);
+        if (!updated) {
+            throw new IllegalStateException("商铺不存在或更新失败，shopId=" + id);
+        }
 
-        //2、事务提交后删除Redis、本地缓存并广播其他实例失效
-        cacheInvalidatePublisher.invalidateShopAfterCommit(id);
+        // 2、与业务更新同事务写入Outbox；任一步异常都会一起回滚。
+        cacheInvalidationOutboxService.recordShopInvalidation(id);
         return Result.ok();
     }
 

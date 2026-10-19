@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Isolated middleware capacity" enabled="true">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"><collectionProp name="Arguments.arguments"/></elementProp>
+    </TestPlan>
+    <hashTree>
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="Prepare isolated data" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController"><boolProp name="LoopController.continue_forever">false</boolProp><stringProp name="LoopController.loops">1</stringProp></elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp><stringProp name="ThreadGroup.ramp_time">0</stringProp><boolProp name="ThreadGroup.scheduler">false</boolProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JavaSampler guiclass="JavaTestSamplerGui" testclass="JavaSampler" testname="prepare" enabled="true">
+          <stringProp name="classname">capacity.CapacitySampler</stringProp>
+          <elementProp name="arguments" elementType="Arguments"><collectionProp name="Arguments.arguments">
+            <elementProp name="phase" elementType="Argument"><stringProp name="Argument.name">phase</stringProp><stringProp name="Argument.value">prepare</stringProp><stringProp name="Argument.metadata">=</stringProp></elementProp>
+            <elementProp name="scenario" elementType="Argument"><stringProp name="Argument.name">scenario</stringProp><stringProp name="Argument.value">${__P(scenario,redis-get)}</stringProp></elementProp>
+            <elementProp name="envFile" elementType="Argument"><stringProp name="Argument.name">envFile</stringProp><stringProp name="Argument.value">${__P(envFile)}</stringProp></elementProp>
+            <elementProp name="runId" elementType="Argument"><stringProp name="Argument.name">runId</stringProp><stringProp name="Argument.value">${__P(runId)}</stringProp></elementProp>
+            <elementProp name="resultDir" elementType="Argument"><stringProp name="Argument.name">resultDir</stringProp><stringProp name="Argument.value">${__P(resultDir)}</stringProp></elementProp>
+            <elementProp name="threads" elementType="Argument"><stringProp name="Argument.name">threads</stringProp><stringProp name="Argument.value">${__P(threads,8)}</stringProp></elementProp>
+            <elementProp name="batch" elementType="Argument"><stringProp name="Argument.name">batch</stringProp><stringProp name="Argument.value">${__P(batch,256)}</stringProp></elementProp>
+            <elementProp name="luaFile" elementType="Argument"><stringProp name="Argument.name">luaFile</stringProp><stringProp name="Argument.value">${__P(luaFile)}</stringProp></elementProp>
+          </collectionProp></elementProp>
+        </JavaSampler><hashTree/>
+      </hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Measured clients" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController"><boolProp name="LoopController.continue_forever">false</boolProp><stringProp name="LoopController.loops">-1</stringProp></elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,8)}</stringProp><stringProp name="ThreadGroup.ramp_time">2</stringProp><boolProp name="ThreadGroup.scheduler">true</boolProp><stringProp name="ThreadGroup.duration">${__P(duration,25)}</stringProp><stringProp name="ThreadGroup.delay">0</stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <JavaSampler guiclass="JavaTestSamplerGui" testclass="JavaSampler" testname="${__P(scenario)}" enabled="true">
+          <stringProp name="classname">capacity.CapacitySampler</stringProp>
+          <elementProp name="arguments" elementType="Arguments"><collectionProp name="Arguments.arguments">
+            <elementProp name="phase" elementType="Argument"><stringProp name="Argument.name">phase</stringProp><stringProp name="Argument.value">measure</stringProp></elementProp>
+            <elementProp name="scenario" elementType="Argument"><stringProp name="Argument.name">scenario</stringProp><stringProp name="Argument.value">${__P(scenario)}</stringProp></elementProp>
+          </collectionProp></elementProp>
+        </JavaSampler><hashTree/>
+      </hashTree>
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="Validate and clean isolated data" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController"><boolProp name="LoopController.continue_forever">false</boolProp><stringProp name="LoopController.loops">1</stringProp></elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp><stringProp name="ThreadGroup.ramp_time">0</stringProp><boolProp name="ThreadGroup.scheduler">false</boolProp>
+      </PostThreadGroup>
+      <hashTree>
+        <JavaSampler guiclass="JavaTestSamplerGui" testclass="JavaSampler" testname="finish" enabled="true">
+          <stringProp name="classname">capacity.CapacitySampler</stringProp>
+          <elementProp name="arguments" elementType="Arguments"><collectionProp name="Arguments.arguments"><elementProp name="phase" elementType="Argument"><stringProp name="Argument.name">phase</stringProp><stringProp name="Argument.value">finish</stringProp></elementProp></collectionProp></elementProp>
+        </JavaSampler><hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

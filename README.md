@@ -12,7 +12,7 @@
 - **消息可靠性与补偿**：使用 Publisher Confirm、Return、手动 ACK、重试队列、失败队列与停车队列处理消息投递和消费异常；Redis 记录待处理订单，由定时任务补偿重投，减少预扣成功但消息未落库的风险。
 - **幂等与超卖保护**：消费者侧通过数据库事务、库存条件扣减及订单唯一约束，保证重复消息不会重复下单，库存不会超卖。
 - **多级缓存**：商户详情采用 Caffeine + Redis + MySQL 查询链路，配合空值缓存和随机 TTL，应对缓存穿透、热点访问和缓存雪崩。
-- **缓存最终一致性**：商户更新在事务提交后删除 Redis 缓存、清理本地缓存，并经 RabbitMQ Fanout 广播各实例失效本地缓存。
+- **缓存最终一致性**：商户更新与缓存失效 Outbox 事件在同一 MySQL 事务中提交；后台任务可靠删除 Redis、清理本地缓存，并经 RabbitMQ Fanout 广播各实例，配合退避重试、延迟双删、停车队列与 TTL 兜底。
 - **分布式限流**：基于 AOP、自定义注解、Redis ZSet 和 Lua 实现滑动窗口限流，秒杀接口支持全局维度限流。
 - **本地生活能力**：支持验证码/密码登录、Token 会话、个人资料维护、签到统计、商户 GEO 查询、探店笔记、点赞排行榜、关注及共同关注。
 
@@ -65,7 +65,7 @@
 请求 → Caffeine 本地缓存 → Redis → MySQL → 回填 Redis / Caffeine
 ```
 
-商户更新后，在数据库事务提交后依次进行 Redis 和本地缓存失效，并广播通知其他应用实例清理本地缓存，TTL 作为最终兜底。
+商户更新与缓存失效 Outbox 事件在同一数据库事务中提交。后台任务带租约领取事件，分别删除 Redis、清理本地 Caffeine 并广播其他实例；任一步失败都会退避重试，首次成功后还会执行延迟双删。Redis 查询或回填异常时，商户详情读取会降级到 MySQL，并保留本次成功结果。
 
 ## 已实现功能
 
@@ -137,7 +137,7 @@ HMDP_REDIS_PASSWORD=change-me
 HMDP_RABBITMQ_HOST=localhost
 HMDP_RABBITMQ_PORT=5672
 HMDP_RABBITMQ_USERNAME=hmdp
-HMDP_RABBITMQ_PASSWORD=hmdp_mq_2026
+HMDP_RABBITMQ_PASSWORD=change-me
 HMDP_RABBITMQ_VIRTUAL_HOST=/hmdp
 ```
 
@@ -177,6 +177,9 @@ java -jar target/hm-dianping-0.0.1-SNAPSHOT.jar
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `hmdp.cache.shop.local-enabled` | `true` | 是否启用商户 Caffeine 本地缓存 |
+| `hmdp.cache.outbox.scan-interval-ms` | `1000` | 缓存失效 Outbox 扫描间隔 |
+| `hmdp.cache.outbox.max-retries` | `8` | 每个缓存失效阶段最大尝试次数 |
+| `hmdp.cache.outbox.double-delete-delay-ms` | `1000` | 延迟二次失效等待时间 |
 | `hmdp.seckill.async-enabled` | `true` | `true` 为 RabbitMQ 异步下单；`false` 为同步写库，便于对比压测 |
 | `hmdp.rate-limit.enabled` | `true` | 是否启用限流 |
 | `hmdp.rate-limit.seckill.max-count` | `300` | 秒杀窗口最大放行数 |
@@ -209,6 +212,17 @@ java -jar target/hm-dianping-0.0.1-SNAPSHOT.jar
 
 所有性能结论均来自仓库内保留的 JMeter 场景和报告；环境条件会显著影响结果，建议在自己的环境中复测。
 
+### 最新容量测试（2026-10-14 / 2026-10-15）
+
+| 测试范围 | 实测结果 | 报告 |
+| --- | --- | --- |
+| 中间件独立操作 | Redis 秒杀 Lua 约 3,803 次/秒；MySQL 单库存热点订单事务约 752 TPS；RabbitMQ 持久化消息约 28,399 条/秒 | [中间件吞吐报告与汇总](hm-dianping/docs/jmeter/capacity/2026-10-14-capacity-report.md) |
+| HTTP 热点商户查询 | 500 线程、180 秒，约 4,542 次/秒，P95 144ms | [HTTP 容量报告与汇总](hm-dianping/docs/jmeter/http-capacity/2026-10-15-http-capacity-report.md) |
+| HTTP 固定节拍下单 | 180 秒，受理约 240 次/秒、完成约 240 单/秒，服务端完成 P95 73ms | [HTTP 容量报告与汇总](hm-dianping/docs/jmeter/http-capacity/2026-10-15-http-capacity-report.md) |
+| HTTP 完成后再下单流程 | 100 线程、180 秒，完成约 298 单/秒，客户端完成 P95 522ms | [HTTP 容量报告与汇总](hm-dianping/docs/jmeter/http-capacity/2026-10-15-http-capacity-report.md) |
+
+组件直连吞吐、HTTP 受理 QPS 和订单完成 TPS 的测试模型不同，不能相互替代。报告保留预热、环境变化、失败档位及一致性核验；这些历史容量数据未在本次提交前重新压测。复现脚本和各阶段汇总 CSV 随仓库提交，大体积原始记录归档保留在本地。
+
 ### RabbitMQ 异步下单对比
 
 在 1,000 用户、1 秒内抢购 1,000 库存，且关闭入口限流的场景下：
@@ -237,11 +251,13 @@ java -jar target/hm-dianping-0.0.1-SNAPSHOT.jar
 
 ## 测试与压测
 
-运行单元测试：
+在 `hm-dianping` 模块目录运行不依赖外部中间件的单元测试：
 
 ```bash
-mvn test
+mvn -B "-Dtest=ShopCacheServiceTest,ShopServiceImplTest,CacheInvalidatePublisherTest,CacheInvalidationOutboxTaskTest,SnowflakeIdGeneratorTest,SeckillRedisKeysTest,PendingOrderRepublishTaskTest" test
 ```
+
+2026-10-19 提交前验证：上述 7 个测试类共 15 个用例全部通过，详见 [单元测试验证报告](hm-dianping/docs/2026-10-19-publish-validation.md)。其他集成及数据准备测试需要独立环境，其中部分用例会修改测试数据。
 
 秒杀端到端 JMeter 脚本位于：
 
@@ -266,6 +282,7 @@ lxsh-dianping/
 │   │   └── utils/                        # Token、缓存、锁、Snowflake ID 等工具
 │   ├── src/main/resources/
 │   │   ├── db/hmdp.sql                   # 数据库初始化脚本
+│   │   ├── db/cache_consistency_outbox.sql # 已有数据库的缓存 Outbox 升级脚本
 │   │   ├── *.lua                         # 秒杀、补偿、限流 Lua 脚本
 │   │   ├── application.yaml              # 应用配置
 │   │   └── docker-compose.yml            # RabbitMQ / Redis 辅助环境
@@ -275,12 +292,18 @@ lxsh-dianping/
 
 ## 相关文档
 
+- [2026-10-15 HTTP 接口容量测试报告](hm-dianping/docs/jmeter/http-capacity/2026-10-15-http-capacity-report.md)
+- [2026-10-14 中间件吞吐压测报告](hm-dianping/docs/jmeter/capacity/2026-10-14-capacity-report.md)
+- [2026-10-19 提交前单元测试验证](hm-dianping/docs/2026-10-19-publish-validation.md)
 - [秒杀业务压测报告](hm-dianping/docs/秒杀业务压测报告.md)
 - [Caffeine + Redis 二级缓存压测报告](hm-dianping/docs/Caffeine_Redis二级缓存压测报告.md)
+- [Caffeine + Redis 二级缓存人工复现文档](hm-dianping/docs/Caffeine_Redis二级缓存人工复现文档.md)
+- [MySQL、Redis、Caffeine 最终一致性改造文档](hm-dianping/docs/MySQL_Redis_Caffeine最终一致性改造文档.md)
 - [JMeter 秒杀订单端到端压测说明](hm-dianping/docs/jmeter/README.md)
 - [RabbitMQ 秒杀重构说明](hm-dianping/docs/rabbitmq-seckill-rebuild-guide.md)
 - [RabbitMQ 可靠性完善说明](hm-dianping/docs/rabbitmq-reliability-completion-guide.md)
 - [Snowflake ID 生成器迁移说明](hm-dianping/docs/snowflake-id-generator-migration.md)
+- [项目面试与实现说明](hm-dianping/docs/interview-prep/README.md)
 
 ## 注意事项
 

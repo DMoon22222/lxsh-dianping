@@ -1,0 +1,10 @@
+# Local archives and runtime output
+/.codex_out/
+/hm-dianping.zip
+*.log
+__pycache__/
+*.py[cod]
+
+# Generated authentication data
+tokens.csv
+*-tokens.csv
