@@ -15,6 +15,7 @@ import com.hmdp.entity.UserInfo;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
+import com.hmdp.sms.SmsCodeService;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -54,26 +55,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private IUserInfoService userInfoService;
+    @Resource
+    private SmsCodeService smsCodeService;
 
     @Override
     public Result sendCode(String phone, HttpSession session) {
-        //1、校验手机号
-        if(RegexUtils.isPhoneInvalid(phone)){
-            //2、如果不符合，返回错误信息
-            return Result.fail("手机号格式不正确");
-
-        }
-        //3、如果符合，生成验证码
-        String code = randomNumbers(6);
-
-        //4、保存验证码到Redis中
-        stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY+phone,code,LOGIN_CODE_TTL, TimeUnit.MINUTES);
-
-        //TODO 5、发送验证码 暂时假设发送成功
-        log.debug("发送验证码成功，验证码：{}",code);
-
-        //6、返回成功
-        return Result.ok();
+        return smsCodeService.sendCode(phone);
     }
 
     @Override

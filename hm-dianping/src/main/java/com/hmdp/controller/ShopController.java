@@ -3,6 +3,7 @@ package com.hmdp.controller;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.service.IShopService;
@@ -85,11 +86,27 @@ public class ShopController {
     @GetMapping("/of/name")
     public Result queryShopByName(
             @RequestParam(value = "name", required = false) String name,
-            @RequestParam(value = "current", defaultValue = "1") Integer current
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam(value = "sortBy", defaultValue = "") String sortBy
     ) {
-        // 根据类型分页查询
-        Page<Shop> page = shopService.query()
-                .like(StrUtil.isNotBlank(name), "name", name)
+        if (current < 1) {
+            return Result.fail("页码必须大于0");
+        }
+        String keyword = StrUtil.trim(name);
+        if (keyword != null && keyword.length() > 100) {
+            return Result.fail("搜索关键词不能超过100个字符");
+        }
+        QueryChainWrapper<Shop> query = shopService.query();
+        if (StrUtil.isNotBlank(keyword)) {
+            query.and(q -> q.like("name", keyword).or().like("area", keyword)
+                    .or().like("address", keyword));
+        }
+        if ("score".equals(sortBy)) {
+            query.orderByDesc("score");
+        } else if ("comments".equals(sortBy)) {
+            query.orderByDesc("comments");
+        }
+        Page<Shop> page = query.orderByAsc("id")
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 返回数据
         return Result.ok(page.getRecords());

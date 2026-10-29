@@ -6,19 +6,36 @@ import com.hmdp.dto.Result;
 import com.hmdp.utils.SystemConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 
 @Slf4j
 @RestController
 @RequestMapping("upload")
 public class UploadController {
+    @Value("${hmdp.image-upload-dir:${HMDP_IMAGE_UPLOAD_DIR:}}")
+    private String imageUploadDir;
 
     @PostMapping("blog")
     public Result uploadImage(@RequestParam("file") MultipartFile image) {
+        if (image.isEmpty()) {
+            return Result.fail("请选择图片文件");
+        }
+        if (image.getSize() > 5L * 1024 * 1024) {
+            return Result.fail("图片不能超过5MB");
+        }
+        String suffix = StrUtil.subAfter(image.getOriginalFilename(), ".", true);
+        if (suffix == null || !Arrays.asList("jpg", "jpeg", "png", "gif", "webp")
+                .contains(suffix.toLowerCase(Locale.ROOT))) {
+            return Result.fail("仅支持JPG、PNG、GIF、WebP图片");
+        }
         try {
             // 获取原始文件名称
             String originalFilename = image.getOriginalFilename();
@@ -26,7 +43,7 @@ public class UploadController {
             String fileName = createNewFileName(originalFilename);
             // 保存文件到nginx静态资源目录
             File targetFile = new File(
-                    new File(SystemConstants.IMAGE_UPLOAD_DIR).getAbsoluteFile(),
+                    imageRoot(),
                     trimLeadingSlash(fileName)
             );
             File parentFile = targetFile.getParentFile();
@@ -48,7 +65,12 @@ public class UploadController {
         if (relativeName.startsWith("imgs/")) {
             relativeName = relativeName.substring("imgs/".length());
         }
-        File file = new File(new File(SystemConstants.IMAGE_UPLOAD_DIR).getAbsoluteFile(), relativeName);
+        Path root = imageRoot().toPath().normalize();
+        Path target = root.resolve(relativeName.replace('\\', '/')).normalize();
+        if (!relativeName.replace('\\', '/').startsWith("blogs/") || !target.startsWith(root.resolve("blogs"))) {
+            return Result.fail("错误的文件名称");
+        }
+        File file = target.toFile();
         if (file.isDirectory()) {
             return Result.fail("错误的文件名称");
         }
@@ -66,7 +88,7 @@ public class UploadController {
         int d2 = (hash >> 4) & 0xF;
         String relativeDir = StrUtil.format("blogs/{}/{}", d1, d2);
         // 判断目录是否存在
-        File dir = new File(new File(SystemConstants.IMAGE_UPLOAD_DIR).getAbsoluteFile(), relativeDir);
+        File dir = new File(imageRoot(), relativeDir);
         if (!dir.exists()) {
             dir.mkdirs();
         }
@@ -82,5 +104,10 @@ public class UploadController {
             path = path.substring(1);
         }
         return path;
+    }
+
+    private File imageRoot() {
+        return new File(StrUtil.isBlank(imageUploadDir) ? SystemConstants.IMAGE_UPLOAD_DIR : imageUploadDir)
+                .getAbsoluteFile();
     }
 }

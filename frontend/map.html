@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附近商户 - 乐享生活</title><link rel="stylesheet" href="/css/element.css"><link rel="stylesheet" href="/css/main.css">
+<link rel="stylesheet" href="/css/app-fixes.css?v=20261029-repair1"><link rel="stylesheet" href="/css/discovery.css?v=20261029-discovery1"></head>
+<body><div id="app" class="discovery-page">
+<main class="discovery-body">
+  <header class="discovery-hero"><h1>附近好店</h1><p>看看身边有什么好去处，让每次出门都有新发现。</p></header>
+  <section class="location-card" aria-label="当前位置">
+    <div><strong><i class="el-icon-location-outline"></i> {{location.label}}</strong><p>{{location.source==='sample'?'尚未使用真实定位，当前展示杭州示例位置周边商户':'按本机定位查询，距离为直线距离'}}</p></div>
+    <div class="location-actions"><button class="primary-button" @click="locate" :disabled="locating">{{locating?'正在定位…':'使用我的位置'}}</button><button v-if="location.source!=='sample'" class="text-button" @click="useSample">使用示例位置</button></div>
+    <p v-if="locationError" class="inline-error" role="status">{{locationError}}</p>
+  </section>
+  <div class="discovery-filters"><label>商户分类 <select v-model="typeId" @change="query(true)"><option value="">全部分类</option><option v-for="t in types" :key="t.id" :value="t.id">{{t.name}}</option></select></label><label>附近范围 <select v-model.number="radiusKm" @change="query(true)"><option :value="3">3公里</option><option :value="5">5公里</option><option :value="10">10公里</option><option :value="20">20公里</option></select></label></div>
+  <section class="merchant-map" aria-label="商户分布示意">
+    <div class="range-circle"></div><div class="center-point" aria-label="查询中心"></div>
+    <a class="merchant-marker" v-for="(s,i) in shops.slice(0,30)" :key="s.id" :style="markerStyle(s)" :href="'/shop-detail.html?id='+s.id" :aria-label="s.name+'，'+distance(s.distance)">{{i+1}}</a>
+    <span class="map-caption">商户分布示意 · 以所选位置为中心</span>
+  </section>
+  <div class="section-heading"><h2>附近推荐</h2><span>按距离从近到远</span></div>
+  <section class="nearby-results" aria-live="polite">
+    <a v-for="s in shops" :key="s.id" class="merchant-card" :href="'/shop-detail.html?id='+s.id">
+      <img :src="firstImage(s.images)" @error="imageError" :alt="s.name" loading="lazy">
+      <div class="merchant-info"><h3>{{s.name}}</h3><p class="merchant-rating"><span>★ {{s.score ? (s.score/10).toFixed(1) : '暂无评分'}}</span><span>{{s.comments||0}}条评价</span></p><p>{{s.avgPrice ? '人均 ¥'+s.avgPrice+' · ' : ''}}{{s.area||'商户详情'}}</p><p class="merchant-address">{{s.address||'暂无地址'}}</p></div><strong class="merchant-distance">{{distance(s.distance)}}</strong>
+    </a>
+    <div v-if="error" class="empty-state" role="alert"><p>{{error}}</p><button class="primary-button" @click="query(true)">重新加载</button></div>
+    <div v-else-if="loading" class="list-status">正在查找附近商户…</div>
+    <div v-else-if="!shops.length" class="empty-state"><i class="el-icon-map-location"></i><h2>附近暂未找到商户</h2><p>试试扩大范围、切换分类或使用示例位置。</p><button v-if="location.source!=='sample'" class="outline-button" @click="useSample">查看示例位置附近</button></div>
+    <button v-else-if="hasMore" class="load-more" @click="query(false)">加载更多商户</button>
+    <div v-else class="list-status">已展示该范围内的全部商户</div>
+  </section>
+</main><foot-bar :active-btn="2"></foot-bar></div>
+<script src="/js/vue.js"></script><script src="/js/axios.min.js"></script><script src="/js/element.js"></script>
+<script src="/js/common.js?v=20261029-repair1"></script><script src="/js/footer.js?v=20261029-discovery2"></script><script src="/js/discovery-location.js?v=20261029-discovery1"></script>
+<script>
+new Vue({el:'#app',data:{location:discoveryLocation.get(),locationError:'',locating:false,types:[],typeId:'',radiusKm:5,shops:[],current:1,loading:false,hasMore:true,error:'',generation:0},
+created(){axios.get('/shop-type/list').then(({data})=>this.types=data||[]).catch(()=>{});this.query(true);},
+methods:{
+  distance:discoveryLocation.distance,
+  locate(){if(this.locating)return;this.locating=true;this.locationError='';discoveryLocation.locate().then(p=>{this.location=p;this.query(true);}).catch(e=>this.locationError=e.message).finally(()=>this.locating=false);},
+  useSample(){this.location=discoveryLocation.sample();this.locationError='';this.query(true);},
+  query(reset){if(!reset&&(this.loading||!this.hasMore))return;if(reset){this.generation++;this.current=1;this.shops=[];this.hasMore=true;}const generation=this.generation;this.loading=true;this.error='';axios.get('/shop/nearby',{params:{x:this.location.x,y:this.location.y,radiusKm:this.radiusKm,typeId:this.typeId,current:this.current}}).then(({data})=>{if(generation!==this.generation)return;const rows=data||[];this.shops=this.shops.concat(rows);this.current++;this.hasMore=rows.length===10;}).catch(e=>{if(generation===this.generation)this.error=e;}).finally(()=>{if(generation===this.generation)this.loading=false;});},
+  markerStyle(s){const scale=this.radiusKm*1000;const dx=(s.x-this.location.x)*111320*Math.cos(this.location.y*Math.PI/180);const dy=(s.y-this.location.y)*111320;return {left:Math.max(5,Math.min(95,50+dx/scale*43))+'%',top:Math.max(8,Math.min(88,48-dy/scale*38))+'%'};}
+}});
+</script></body></html>

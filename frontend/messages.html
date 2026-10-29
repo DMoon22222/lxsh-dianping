@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的消息 - 乐享生活</title><link rel="stylesheet" href="/css/element.css"><link rel="stylesheet" href="/css/main.css">
+<link rel="stylesheet" href="/css/app-fixes.css?v=20261029-repair1"><link rel="stylesheet" href="/css/discovery.css?v=20261029-discovery1"></head>
+<body><div id="app" class="discovery-page"><main class="discovery-body">
+  <header class="discovery-hero"><h1>消息中心</h1><p>收到的喜欢、笔记新动态，还有身边刚出现的好店。</p></header>
+  <div v-if="loggedIn===null" class="list-status">正在加载你的消息…</div>
+  <section v-else-if="!loggedIn" class="login-card empty-state"><i class="el-icon-chat-dot-round"></i><h2>登录后查看你的消息</h2><p>每个账号都有自己的笔记动态与点赞记录。</p><button class="primary-button" @click="login">去登录</button></section>
+  <template v-else>
+    <section class="message-summary"><div><strong>{{user.nickName}}的最近动态</strong><p>最近30天 · 最多展示50条 · 每分钟更新</p></div><button class="text-button" :disabled="loading" @click="load(false)">{{loading?'正在刷新…':'刷新消息'}}</button></section>
+    <nav class="message-tabs" aria-label="消息分类"><button v-for="t in tabs" :key="t.id" :class="{selected:filter===t.id}" @click="filter=t.id">{{t.label}}<span v-if="count(t.id)">{{count(t.id)}}</span></button></nav>
+    <p class="message-location">附近新店：{{location.label}}周边5公里 <a href="/map.html?v=20261029-discovery2">更换位置</a></p>
+    <div v-if="error" class="error-banner" role="alert">{{error}} <button class="text-button" @click="load(false)">重试</button></div>
+    <section class="activity-list" aria-live="polite">
+      <a v-for="m in visible" :key="m.id" class="activity-card" :href="target(m)">
+        <div class="activity-symbol" :class="m.type.toLowerCase()"><i :class="icon(m.type)"></i></div>
+        <div class="activity-copy"><h2>{{m.title}}</h2><p>{{m.content}}</p><div class="activity-meta"><time :datetime="new Date(m.createdAt).toISOString()">{{time(m.createdAt)}}</time><span v-if="m.distance!=null">{{distance(m.distance)}}</span><span>查看详情 ›</span></div></div>
+        <img class="activity-cover" :src="firstImage(m.image)" @error="imageError" alt="相关内容图片" loading="lazy">
+      </a>
+      <div v-if="!loading&&!error&&!visible.length" class="empty-state"><i class="el-icon-bell"></i><h2>暂时没有{{filter==='all'?'新动态':tabs.find(t=>t.id===filter).label}}</h2><p>{{filter==='like'?'笔记收到新点赞后，会在这里显示。':filter==='nearby'?'所选位置周边暂无近期新增商户。':'发布一篇笔记，或关注你感兴趣的作者吧。'}}</p><a href="/blog-edit.html">发布笔记</a></div>
+      <div v-if="loading&&!messages.length" class="list-status">正在整理最近动态…</div>
+    </section>
+  </template>
+</main><foot-bar :active-btn="3"></foot-bar></div>
+<script src="/js/vue.js"></script><script src="/js/axios.min.js"></script><script src="/js/element.js"></script>
+<script src="/js/common.js?v=20261029-repair1"></script><script src="/js/footer.js?v=20261029-discovery2"></script><script src="/js/discovery-location.js?v=20261029-discovery1"></script>
+<script>
+new Vue({el:'#app',data:{loggedIn:null,user:{},location:discoveryLocation.get(),messages:[],loading:false,error:'',filter:'all',timer:null,tabs:[{id:'all',label:'全部'},{id:'like',label:'收到点赞'},{id:'note',label:'笔记动态'},{id:'nearby',label:'附近新店'}]},
+computed:{visible(){return this.messages.filter(m=>this.matches(m,this.filter));}},
+created(){if(!sessionStorage.getItem('token')){this.loggedIn=false;return;}axios.get('/user/me',{skipAuthRedirect:true}).then(({data})=>{this.user=data;this.loggedIn=true;this.load(false);this.timer=setInterval(()=>{if(document.visibilityState==='visible')this.load(true);},60000);}).catch(e=>{this.loggedIn=!!sessionStorage.getItem('token');this.error=e;});},
+beforeDestroy(){clearInterval(this.timer);},
+methods:{
+  login(){util.toLogin();},distance:discoveryLocation.distance,
+  matches(m,filter){return filter==='all'||(filter==='like'&&m.type==='LIKE')||(filter==='note'&&['PUBLISHED','FOLLOWED_POST'].includes(m.type))||(filter==='nearby'&&m.type==='NEW_SHOP');},
+  count(filter){return this.messages.filter(m=>this.matches(m,filter)).length;},
+  load(quiet){if(this.loading||!this.loggedIn)return;this.loading=true;this.error='';this.location=discoveryLocation.get();axios.get('/messages',{params:{x:this.location.x,y:this.location.y},skipAuthRedirect:true}).then(({data})=>this.messages=data||[]).catch(e=>{if(!sessionStorage.getItem('token')){this.loggedIn=false;clearInterval(this.timer);}else this.error=e;}).finally(()=>this.loading=false);},
+  target(m){return (m.targetType==='SHOP'?'/shop-detail.html?id=':'/blog-detail.html?id=')+encodeURIComponent(m.targetId);},
+  icon(type){return {LIKE:'el-icon-thumb',PUBLISHED:'el-icon-document-checked',FOLLOWED_POST:'el-icon-document',NEW_SHOP:'el-icon-shopping-bag-1'}[type]||'el-icon-bell';},
+  time(value){const date=new Date(value),now=new Date(),minutes=Math.max(0,Math.floor((now-date)/60000));if(minutes<1)return '刚刚';if(minutes<60)return minutes+'分钟前';if(minutes<1440)return Math.floor(minutes/60)+'小时前';return date.toLocaleDateString('zh-CN')+' '+date.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});}
+}});
+</script></body></html>

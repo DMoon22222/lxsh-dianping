@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>首页 - 乐享生活</title><link rel="stylesheet" href="/css/element.css">
+<link rel="stylesheet" href="/css/main.css?v=20261029-repair1"><link rel="stylesheet" href="/css/index.css?v=20261029-repair1"><link rel="stylesheet" href="/css/app-fixes.css?v=20261029-repair1"></head>
+<body>
+<div id="app" class="home-page">
+  <header class="search-bar"><div class="city-btn">广州</div>
+    <div class="search-input"><el-input v-model="keyword" maxlength="100" size="small" placeholder="搜索商户名称、地点" clearable @keyup.enter.native="search">
+      <i slot="prefix" class="el-input__icon el-icon-search"></i><button slot="suffix" class="search-submit" @click="search" aria-label="搜索">搜索</button>
+    </el-input></div><a class="header-icon" href="/info.html" aria-label="个人主页"><i class="el-icon-user"></i></a>
+  </header>
+  <nav class="type-list"><a class="type-box" v-for="t in types" :key="t.id" :href="typeLink(t)"><div class="type-view"><img :src="imageUrl(t.icon)" @error="imageError" :alt="t.name"></div><div class="type-text">{{t.name}}</div></a></nav>
+  <main class="blog-list" @scroll.passive="onScroll">
+    <article class="blog-box" v-for="b in blogs" :key="b.id">
+      <a class="blog-img" :href="'/blog-detail.html?id='+b.id"><img :src="firstImage(b.images)" @error="imageError" :alt="b.title" loading="lazy"></a>
+      <a class="blog-title" :href="'/blog-detail.html?id='+b.id">{{b.title}}</a>
+      <div class="blog-foot"><img class="author-avatar" :src="imageUrl(b.icon) || '/imgs/icons/default-icon.png'" @error="imageError" alt="作者头像"><span class="blog-user-name">{{b.name || '用户'}}</span>
+        <button class="like-button" :class="{liked:b.isLike}" @click="addLike(b)" :disabled="b.likeBusy" :aria-label="b.isLike?'取消点赞':'点赞'"><i class="el-icon-thumb"></i> {{b.liked || 0}}</button></div>
+    </article>
+    <div class="list-status" v-if="error">{{error}} <button @click="queryHotBlogsScroll">重试</button></div>
+    <div class="list-status" v-else-if="loading">正在加载笔记…</div>
+    <div class="list-status" v-else-if="!blogs.length">还没有笔记，去分享你的生活吧</div>
+    <button class="load-more" v-else-if="hasMore" @click="queryHotBlogsScroll">加载更多</button>
+    <div class="list-status" v-else>已经到底了</div>
+  </main><foot-bar :active-btn="1"></foot-bar>
+</div><script src="/js/vue.js"></script><script src="/js/axios.min.js"></script><script src="/js/element.js"></script>
+<script src="/js/common.js?v=20261029-repair1"></script><script src="/js/footer.js?v=20261029-discovery2"></script><script>
+const app = new Vue({el:'#app',data:{keyword:'',types:[],blogs:[],current:1,loading:false,hasMore:true,error:''},
+created(){axios.get('/shop-type/list').then(({data})=>this.types=data||[]).catch(e=>this.$message.error(e));this.queryHotBlogsScroll();},
+methods:{
+  search(){const keyword=this.keyword.trim();if(!keyword)return this.$message.warning('请输入商户名称或地点');location.href='/shop-list.html?keyword='+encodeURIComponent(keyword);},
+  typeLink(t){return '/shop-list.html?type='+t.id+'&name='+encodeURIComponent(t.name);},
+  queryHotBlogsScroll(){if(this.loading||!this.hasMore)return;this.loading=true;this.error='';axios.get('/blog/hot',{params:{current:this.current}}).then(({data})=>{const rows=(data||[]).map(b=>Object.assign({},b,{likeBusy:false}));this.blogs=this.blogs.concat(rows);this.current++;this.hasMore=rows.length===10;}).catch(e=>this.error=e).finally(()=>this.loading=false);},
+  onScroll(e){const t=e.target;if(t.scrollTop+t.clientHeight>=t.scrollHeight-48)this.queryHotBlogsScroll();},
+  addLike(b){if(!sessionStorage.getItem('token'))return util.toLogin();if(b.likeBusy)return;b.likeBusy=true;axios.put('/blog/like/'+b.id).then(()=>axios.get('/blog/'+b.id)).then(({data})=>{b.liked=data.liked;b.isLike=data.isLike;}).catch(e=>this.$message.error(e)).finally(()=>b.likeBusy=false);}
+}});
+</script></body></html>

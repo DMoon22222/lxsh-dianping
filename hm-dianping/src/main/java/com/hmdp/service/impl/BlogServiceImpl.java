@@ -83,11 +83,13 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     private void isBlogLiked(Blog blog) {
         //1、获取登录用户
-        Long userId= UserHolder.getUser().getId();
-        if(userId==null){
+        UserDTO currentUser = UserHolder.getUser();
+        if(currentUser == null || currentUser.getId() == null){
             //用户未登录，无需查询是否点赞
+            blog.setIsLike(false);
             return;
         }
+        Long userId = currentUser.getId();
         //2、判断当前用户是否已经点赞
         String key="blog:liked:"+blog.getId();
         Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
@@ -230,6 +232,11 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     private void queryBlogUser(Blog blog) {
         Long userId= blog.getUserId();
         User user=userService.getById(userId);
+        if (user == null) {
+            blog.setName("用户已注销");
+            blog.setIcon(null);
+            return;
+        }
         blog.setName(user.getNickName());
         blog.setIcon(user.getIcon());
     }

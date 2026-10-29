@@ -7,6 +7,8 @@ import com.hmdp.dto.UserDTO;
 import com.hmdp.dto.UserProfileUpdateDTO;
 import com.hmdp.entity.User;
 import com.hmdp.entity.UserInfo;
+import com.hmdp.ratelimit.RateLimit;
+import com.hmdp.ratelimit.RateLimitScope;
 import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
@@ -43,6 +45,9 @@ public class UserController {
      * 发送手机验证码
      */
     @PostMapping("/code")
+    @RateLimit(key = "sms:send", maxCount = "${hmdp.sms.ip-max-count:10}",
+            windowSeconds = "60", scope = RateLimitScope.IP,
+            message = "验证码请求过于频繁，请稍后重试")
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
         // 发送短信验证码并保存验证码
         return userService.sendCode(phone, session);

@@ -1,6 +1,6 @@
 # lxsh-dianping
 
-> 面向本地生活场景的高并发点评服务后端。项目提供商户查询、用户登录、探店笔记、关注互动、优惠券秒杀等能力，并围绕高并发秒杀、缓存治理、可靠消息与流量控制进行工程化实践。
+> 面向本地生活场景的点评应用。项目提供商户查询、用户登录、探店笔记、关注互动、附近推荐、个人动态与优惠券秒杀等能力，包含静态前端与 Spring Boot 后端，并围绕高并发秒杀、缓存治理、可靠消息与流量控制进行工程化实践。
 
 ## 技术栈
 
@@ -15,6 +15,7 @@
 - **缓存最终一致性**：商户更新与缓存失效 Outbox 事件在同一 MySQL 事务中提交；后台任务可靠删除 Redis、清理本地缓存，并经 RabbitMQ Fanout 广播各实例，配合退避重试、延迟双删、停车队列与 TTL 兜底。
 - **分布式限流**：基于 AOP、自定义注解、Redis ZSet 和 Lua 实现滑动窗口限流，秒杀接口支持全局维度限流。
 - **本地生活能力**：支持验证码/密码登录、Token 会话、个人资料维护、签到统计、商户 GEO 查询、探店笔记、点赞排行榜、关注及共同关注。
+- **前端与发现功能**：支持商户搜索、笔记详情和图片上传；附近推荐按坐标展示商户图片与信息，个人消息汇总收到的点赞、自己及关注作者的新笔记和附近新店。前端源码及运行方法见 [frontend](frontend/README.md)。
 
 ## 架构概览
 
@@ -142,6 +143,8 @@ HMDP_RABBITMQ_VIRTUAL_HOST=/hmdp
 ```
 
 `.env` 已被 Git 忽略，请勿提交真实密码、Token 或私有地址。
+
+短信默认使用 `mock` 模式，不会向手机发送短信。个人项目使用 `aliyun-pnvs`，配置及联调见 [个人短信认证接入步骤](hm-dianping/docs/aliyun-pnvs-local-setup.md)；已有企业短信资源的项目可使用 `aliyun`，见 [普通短信接入指南](hm-dianping/docs/aliyun-sms-integration.md)。
 
 ### 5. 启动 Redis 与 RabbitMQ
 
@@ -292,6 +295,9 @@ lxsh-dianping/
 
 ## 相关文档
 
+- [前端运行与 Nginx 配置](frontend/README.md)
+- [附近商户与个人消息](hm-dianping/docs/discovery-and-messages-20261029.md)
+- [搜索、笔记详情与图片上传修复](hm-dianping/docs/frontend-repair-20261029.md)
 - [2026-10-15 HTTP 接口容量测试报告](hm-dianping/docs/jmeter/http-capacity/2026-10-15-http-capacity-report.md)
 - [2026-10-14 中间件吞吐压测报告](hm-dianping/docs/jmeter/capacity/2026-10-14-capacity-report.md)
 - [2026-10-19 提交前单元测试验证](hm-dianping/docs/2026-10-19-publish-validation.md)
@@ -307,7 +313,7 @@ lxsh-dianping/
 
 ## 注意事项
 
-- 本项目为后端服务，前端资源不在当前仓库内。
+- 静态前端位于 `frontend/`；运行时上传的图片位于 `imgs/blogs/`，由部署环境单独保存。
 - 生产环境请通过环境变量或密钥管理服务提供数据库、Redis 与 RabbitMQ 凭据，避免使用示例密码。
 - 多实例部署时为每个实例配置不同的 `hmdp.instance-id`、`worker-id`，并按实际情况设计 Redis/RabbitMQ 高可用方案。
 - 运行压测或数据准备测试前，请确认使用专用数据库记录和秒杀券；相关测试会重置指定券的库存及订单数据。

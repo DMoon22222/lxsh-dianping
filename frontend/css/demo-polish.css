@@ -1,0 +1,135 @@
+.empty-state {
+    min-height: 360px;
+    padding: 56px 24px 24px;
+    text-align: center;
+    color: #3b3d45;
+    background: linear-gradient(180deg, #fff 0%, #f4f8ff 100%);
+}
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    color: #1677ff;
+    background: #eaf3ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+}
+.empty-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.empty-desc {
+    max-width: 280px;
+    margin: 0 auto 18px;
+    color: #7b808a;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.empty-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.empty-actions button {
+    min-width: 86px;
+    border: 0;
+    border-radius: 18px;
+    padding: 9px 16px;
+    color: #fff;
+    background: #1677ff;
+    font-weight: 700;
+    box-shadow: 0 6px 14px rgba(22, 119, 255, 0.22);
+}
+.demo-page {
+    min-height: 92%;
+    padding: 18px 18px 86px;
+    background: #f6f7fb;
+    box-sizing: border-box;
+}
+.demo-top-card {
+    color: #fff;
+    border-radius: 8px;
+    padding: 20px 18px;
+    background: linear-gradient(135deg, #1677ff, #5aa7ff);
+    box-shadow: 0 10px 26px rgba(22, 119, 255, 0.22);
+}
+.demo-top-card h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    letter-spacing: 0;
+}
+.demo-top-card p {
+    margin: 0;
+    opacity: 0.92;
+    line-height: 1.6;
+}
+.map-panel {
+    margin-top: 14px;
+    height: 300px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    background: #e9f1f5;
+}
+.map-grid {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.75) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.75) 1px, transparent 1px);
+    background-size: 38px 38px;
+}
+.map-road {
+    position: absolute;
+    background: #fff;
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(50,60,70,.08);
+}
+.map-road.main-a { width: 360px; height: 18px; left: -30px; top: 130px; transform: rotate(22deg); }
+.map-road.main-b { width: 320px; height: 16px; right: -20px; top: 88px; transform: rotate(-18deg); }
+.map-road.main-c { width: 260px; height: 14px; left: 42px; bottom: 64px; transform: rotate(-6deg); }
+.map-pin {
+    position: absolute;
+    color: #1677ff;
+    font-size: 30px;
+    filter: drop-shadow(0 4px 8px rgba(255,102,51,.28));
+}
+.map-pin.one { left: 52%; top: 36%; }
+.map-pin.two { left: 24%; top: 58%; color: #409eff; }
+.map-pin.three { right: 18%; top: 60%; color: #67c23a; }
+.nearby-card, .message-card {
+    margin-top: 12px;
+    padding: 14px;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(30,40,60,.08);
+}
+.nearby-title, .message-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.nearby-row, .message-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #60656f;
+    line-height: 1.7;
+}
+.message-row {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f1f5;
+}
+.message-row:last-child { border-bottom: 0; }
+.message-badge {
+    min-width: 8px;
+    height: 8px;
+    margin-top: 8px;
+    border-radius: 50%;
+    background: #1677ff;
+}
+.message-content { flex: 1; }
+.message-time { color: #9aa0aa; font-size: 12px; white-space: nowrap; }
+

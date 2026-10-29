@@ -20,6 +20,8 @@ public class MvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(loginInterceptor)
                 .excludePathPatterns(
                         "/blog/hot",
+                        "/blog/{id}",
+                        "/blog/likes/{id}",
                         "/user/login",
                         "/user/code",
                         "/shop/**",

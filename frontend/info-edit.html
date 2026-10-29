@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+  <title>乐享生活</title>
+  <link rel="stylesheet" href="./css/element.css">
+  <link href="./css/main.css?v=20260821-blue-profile" rel="stylesheet">
+  <link href="./css/info.css?v=20260821-blue-profile" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-back-btn" @click="goBack"><i class="el-icon-arrow-left"></i></div>
+    <div class="header-title">资料编辑&nbsp;&nbsp;&nbsp;</div>
+  </div>
+  <div class="edit-container profile-edit">
+    <div class="info-box">
+      <div class="info-item avatar-edit-row">
+        <div class="info-label">头像</div>
+        <div class="info-btn avatar-editor">
+          <img @error="imageError" width="42" :src="imageUrl(form.icon) || '/imgs/icons/default-icon.png'" alt="">
+          <input class="edit-input" v-model="form.icon" placeholder="头像图片地址">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="info-item">
+        <div class="info-label">昵称</div>
+        <div class="info-btn">
+          <input class="edit-input" maxlength="32" v-model.trim="form.nickName" placeholder="输入昵称">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="info-item introduce-row">
+        <div class="info-label">个人介绍</div>
+        <div class="info-btn">
+          <textarea class="edit-textarea" maxlength="128" v-model.trim="form.introduce" placeholder="介绍一下自己"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-item">
+        <div class="info-label">性别</div>
+        <div class="info-btn">
+          <select class="edit-input" v-model="form.gender">
+            <option :value="false">男</option>
+            <option :value="true">女</option>
+          </select>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="info-item">
+        <div class="info-label">城市</div>
+        <div class="info-btn">
+          <input class="edit-input" maxlength="64" v-model.trim="form.city" placeholder="所在城市">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="info-item">
+        <div class="info-label">生日</div>
+        <div class="info-btn">
+          <input class="edit-input" type="date" v-model="form.birthday">
+        </div>
+      </div>
+    </div>
+
+    <button class="save-profile-btn" @click="saveProfile" :disabled="saving">
+      {{ saving ? '保存中...' : '保存资料' }}
+    </button>
+  </div>
+  <foot-bar :active-btn="4"></foot-bar>
+</div>
+<script src="./js/vue.js"></script>
+<script src="./js/axios.min.js"></script>
+<script src="./js/element.js"></script>
+<script src="./js/common.js?v=20261029-repair1"></script>
+<script src="./js/footer.js?v=20261029-discovery2"></script>
+<script>
+  const app = new Vue({
+    el: "#app",
+    data: {
+      user: {},
+      info: {},
+      saving: false,
+      form: {
+        nickName: "",
+        icon: "",
+        introduce: "",
+        gender: false,
+        city: "广州",
+        birthday: ""
+      }
+    },
+    created() {
+      this.checkLogin();
+    },
+    methods: {
+      checkLogin() {
+        axios.get("/user/me")
+          .then(({data}) => {
+            this.user = data || {};
+            this.form.nickName = this.user.nickName || "";
+            this.form.icon = this.user.icon || "";
+            return axios.get("/user/info/" + this.user.id);
+          })
+          .then(({data}) => {
+            this.info = data || {};
+            this.form.introduce = this.info.introduce || "";
+            this.form.gender = this.info.gender === true;
+            this.form.city = this.info.city || "广州";
+            this.form.birthday = this.info.birthday || "";
+          })
+          .catch(err => {
+            this.$message.error(err);
+            setTimeout(() => location.href = "login.html", 1000);
+          })
+      },
+      saveProfile() {
+        if (!this.form.nickName) {
+          this.$message.error("昵称不能为空");
+          return;
+        }
+        this.saving = true;
+        axios.put("/user/info", this.form)
+          .then(() => {
+            sessionStorage.setItem("userInfo", JSON.stringify({
+              city: this.form.city,
+              introduce: this.form.introduce,
+              gender: this.form.gender,
+              birthday: this.form.birthday
+            }));
+            this.$message.success("资料已保存");
+            setTimeout(() => location.href = "/info.html", 300);
+          })
+          .catch(err => this.$message.error(err))
+          .finally(() => {
+            this.saving = false;
+          })
+      },
+      goBack(){
+        history.back();
+      }
+    }
+  })
+</script>
+</body>
+</html>

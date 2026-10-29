@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商户搜索 - 乐享生活</title><link rel="stylesheet" href="/css/element.css">
+<link rel="stylesheet" href="/css/main.css?v=20261029-repair1"><link rel="stylesheet" href="/css/app-fixes.css?v=20261029-repair1"></head>
+<body>
+<div id="app" class="shop-page">
+  <header class="page-header"><button @click="goBack" aria-label="返回"><i class="el-icon-arrow-left"></i></button><h1>{{keyword?'搜索结果':typeName}}</h1><a href="/" aria-label="首页"><i class="el-icon-s-home"></i></a></header>
+  <form class="shop-search" @submit.prevent="search"><el-input v-model="searchText" maxlength="100" placeholder="搜索商户名称、地点" clearable></el-input><button class="primary-button" type="submit">搜索</button></form>
+  <div class="sort-bar"><el-dropdown trigger="click" @command="toType"><span>{{keyword?'切换分类':typeName}} <i class="el-icon-arrow-down"></i></span><el-dropdown-menu slot="dropdown"><el-dropdown-item v-for="t in types" :key="t.id" :command="t">{{t.name}}</el-dropdown-item></el-dropdown-menu></el-dropdown>
+    <template v-if="keyword"><button v-for="s in sorts" :key="s.value" :class="{selected:sortBy===s.value}" @click="changeSort(s.value)">{{s.label}}</button></template><span v-else class="muted">附近商户</span></div>
+  <main class="shop-results" @scroll.passive="onScroll">
+    <p class="result-keyword" v-if="keyword">“{{keyword}}”的搜索结果</p>
+    <a class="shop-result" v-for="s in shops" :key="s.id" :href="'/shop-detail.html?id='+s.id"><img :src="firstImage(s.images)" @error="imageError" :alt="s.name" loading="lazy"><div><h2>{{s.name}}</h2><el-rate :value="Number(s.score || 0)/10" disabled></el-rate><p>{{s.comments || 0}}条评价 · ￥{{s.avgPrice || 0}}/人</p><p>{{s.area}} <span v-if="s.distance!=null">· {{distance(s.distance)}}</span></p><p class="muted">{{s.address}}</p></div></a>
+    <div class="empty-state" v-if="!loading && !error && !shops.length"><i class="el-icon-search"></i><h2>{{keyword?'没有找到相关商户':'暂无附近商户'}}</h2><p>换个关键词，或看看其他分类。</p><a href="/">返回首页</a></div>
+    <div class="list-status" v-if="error">{{error}} <button @click="queryShops(false)">重试</button></div><div class="list-status" v-else-if="loading">正在加载商户…</div><button class="load-more" v-else-if="hasMore && shops.length" @click="queryShops(false)">加载更多</button><div class="list-status" v-else-if="shops.length">已经到底了</div>
+  </main>
+</div><script src="/js/vue.js"></script><script src="/js/axios.min.js"></script><script src="/js/element.js"></script>
+<script src="/js/common.js?v=20261029-repair1"></script><script src="/js/footer.js?v=20261029-discovery2"></script><script>
+const app=new Vue({el:'#app',data:{keyword:util.getUrlParam('keyword').trim(),searchText:util.getUrlParam('keyword'),typeId:util.getUrlParam('type'),typeName:util.getUrlParam('name')||'商户',types:[],shops:[],current:1,sortBy:'',loading:false,hasMore:true,error:'',generation:0,sorts:[{label:'综合',value:''},{label:'人气',value:'comments'},{label:'评分',value:'score'}]},
+created(){axios.get('/shop-type/list').then(({data})=>this.types=data||[]).catch(e=>this.$message.error(e));this.queryShops(true);},methods:{
+  search(){const value=this.searchText.trim();if(!value)return this.$message.warning('请输入商户名称或地点');location.href='/shop-list.html?keyword='+encodeURIComponent(value);},
+  queryShops(reset){if(!reset&&(this.loading||!this.hasMore))return;if(reset){this.generation++;this.shops=[];this.current=1;this.hasMore=true;}const generation=this.generation;this.loading=true;this.error='';const params={current:this.current};let url='/shop/of/name';if(this.keyword){params.name=this.keyword;params.sortBy=this.sortBy;}else if(this.typeId){url='/shop/of/type';params.typeId=this.typeId;params.x=120.149993;params.y=30.334229;}axios.get(url,{params}).then(({data})=>{if(generation!==this.generation)return;const rows=data||[];this.shops=this.shops.concat(rows);this.current++;this.hasMore=rows.length===10;}).catch(e=>{if(generation===this.generation)this.error=e;}).finally(()=>{if(generation===this.generation)this.loading=false;});},
+  toType(t){location.href='/shop-list.html?type='+t.id+'&name='+encodeURIComponent(t.name);},changeSort(value){this.sortBy=value;this.queryShops(true);},onScroll(e){const t=e.target;if(t.scrollTop+t.clientHeight>=t.scrollHeight-48)this.queryShops(false);},distance(value){return Number(value)>=1000?(Number(value)/1000).toFixed(1)+'km':Math.round(Number(value))+'m';},goBack(){history.length>1?history.back():location.href='/';}
+}});
+</script></body></html>

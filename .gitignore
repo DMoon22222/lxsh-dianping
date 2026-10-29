@@ -8,3 +8,8 @@ __pycache__/
 # Generated authentication data
 tokens.csv
 *-tokens.csv
+
+# Frontend runtime uploads and local configuration
+/frontend/imgs/blogs/
+/frontend/.env
+/frontend/.env.*

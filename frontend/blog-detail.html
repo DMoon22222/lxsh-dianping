@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>笔记详情 - 乐享生活</title><link rel="stylesheet" href="/css/element.css">
+<link rel="stylesheet" href="/css/main.css?v=20261029-repair1"><link rel="stylesheet" href="/css/app-fixes.css?v=20261029-repair1"></head>
+<body>
+<div id="app" class="note-page">
+  <header class="page-header"><button @click="goBack" aria-label="返回"><i class="el-icon-arrow-left"></i></button><h1>笔记详情</h1><a href="/" aria-label="首页"><i class="el-icon-s-home"></i></a></header>
+  <div class="list-status" v-if="loading">正在加载笔记…</div><div class="empty-state" v-else-if="error"><h2>{{error}}</h2><button @click="loadNote">重试</button><a href="/">返回首页</a></div>
+  <main class="note-body" v-else-if="blog.id">
+    <div class="gallery-wrap" v-if="blog.images.length"><div class="note-gallery" ref="gallery" @scroll.passive="galleryScrolled"><a v-for="(src,i) in blog.images" :key="i" :href="src" target="_blank" rel="noopener"><img :src="src" @error="imageError" :alt="blog.title+' 图片'+(i+1)"></a></div><div class="gallery-controls" v-if="blog.images.length>1"><button @click="moveImage(-1)" :disabled="activeImage===0" aria-label="上一张图片">‹</button><span>{{activeImage+1}} / {{blog.images.length}}</span><button @click="moveImage(1)" :disabled="activeImage===blog.images.length-1" aria-label="下一张图片">›</button></div></div>
+    <h1 class="note-title">{{blog.title}}</h1><div class="note-author"><button class="author-link" @click="toAuthor"><img :src="imageUrl(blog.icon)||'/imgs/icons/default-icon.png'" @error="imageError" alt="作者头像"><span>{{blog.name || '用户'}}<small>{{formatTime(blog.createTime)}}</small></span></button><button v-if="String(user.id||'')!==String(blog.userId)" class="outline-button" @click="follow" :disabled="followBusy">{{followed?'取消关注':'关注'}}</button></div>
+    <article class="note-content" v-html="contentHtml"></article>
+    <a v-if="shop && shop.id" class="note-shop" :href="'/shop-detail.html?id='+shop.id"><img :src="firstImage(shop.images)" @error="imageError" :alt="shop.name"><div><strong>{{shop.name}}</strong><el-rate :value="Number(shop.score||0)/10" disabled></el-rate><span>￥{{shop.avgPrice || 0}}/人</span></div><i class="el-icon-arrow-right"></i></a>
+    <div class="note-likes"><img v-for="u in likes" :key="u.id" :src="imageUrl(u.icon)||'/imgs/icons/default-icon.png'" @error="imageError" :alt="u.nickName"><span>{{blog.liked || 0}}人点赞</span></div>
+  </main><footer class="note-actions" v-if="blog.id"><a href="/info.html">我的笔记</a><button class="like-button" :class="{liked:blog.isLike}" :disabled="likeBusy" @click="addLike"><i class="el-icon-thumb"></i> {{blog.isLike?'已点赞':'点赞'}} {{blog.liked || 0}}</button></footer>
+</div><script src="/js/vue.js"></script><script src="/js/axios.min.js"></script><script src="/js/element.js"></script>
+<script src="/js/common.js?v=20261029-repair1"></script><script src="/js/footer.js?v=20261029-discovery2"></script><script>
+const app=new Vue({el:'#app',data:{blog:{images:[]},shop:null,likes:[],user:{},followed:false,loading:true,error:'',activeImage:0,likeBusy:false,followBusy:false},computed:{contentHtml(){return util.safeContent(this.blog.content);}},created(){this.loadNote();},methods:{
+  loadNote(){const id=util.getUrlParam('id');if(!/^\d+$/.test(id)){this.error='笔记地址无效';this.loading=false;return;}this.loading=true;this.error='';axios.get('/blog/'+id).then(({data})=>{this.blog=Object.assign({},data,{images:util.imageList(data.images)});if(data.shopId&&Number(data.shopId)>0)axios.get('/shop/'+data.shopId).then(({data})=>this.shop=data).catch(()=>{});this.loadLikes();if(sessionStorage.getItem('token'))this.loadUser();}).catch(e=>this.error=e).finally(()=>this.loading=false);},
+  loadLikes(){axios.get('/blog/likes/'+this.blog.id).then(({data})=>this.likes=data||[]).catch(()=>this.likes=[]);},
+  loadUser(){axios.get('/user/me',{skipAuthRedirect:true}).then(({data})=>{this.user=data||{};if(String(this.user.id)!==String(this.blog.userId))axios.get('/follow/or/not/'+this.blog.userId).then(({data})=>this.followed=!!data).catch(()=>{});}).catch(()=>this.user={});},
+  requireLogin(){if(!sessionStorage.getItem('token')){util.toLogin();return false;}return true;},
+  addLike(){if(!this.requireLogin()||this.likeBusy)return;this.likeBusy=true;axios.put('/blog/like/'+this.blog.id).then(()=>axios.get('/blog/'+this.blog.id)).then(({data})=>{this.blog.liked=data.liked;this.blog.isLike=data.isLike;this.loadLikes();}).catch(e=>this.$message.error(e)).finally(()=>this.likeBusy=false);},
+  follow(){if(!this.requireLogin()||this.followBusy)return;this.followBusy=true;axios.put('/follow/'+this.blog.userId+'/'+!this.followed).then(()=>{this.followed=!this.followed;this.$message.success(this.followed?'已关注':'已取消关注');}).catch(e=>this.$message.error(e)).finally(()=>this.followBusy=false);},
+  toAuthor(){location.href=String(this.user.id)===String(this.blog.userId)?'/info.html':'/other-info.html?id='+this.blog.userId;},
+  formatTime(value){if(!value)return '';const date=new Date(value);return Number.isNaN(date.getTime())?'':date.toLocaleDateString('zh-CN');},
+  galleryScrolled(e){this.activeImage=Math.round(e.target.scrollLeft/e.target.clientWidth);},moveImage(step){this.$refs.gallery.scrollTo({left:(this.activeImage+step)*this.$refs.gallery.clientWidth,behavior:'smooth'});},goBack(){history.length>1?history.back():location.href='/';}
+}});
+</script></body></html>

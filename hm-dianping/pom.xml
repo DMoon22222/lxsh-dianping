@@ -16,8 +16,20 @@
     <properties>
         <java.version>1.8</java.version>
         <lombok.version>1.18.32</lombok.version>
+        <aliyun-sms.version>4.6.0</aliyun-sms.version>
+        <aliyun-pnvs.version>2.0.0</aliyun-pnvs.version>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dysmsapi20170525</artifactId>
+            <version>${aliyun-sms.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dypnsapi20170525</artifactId>
+            <version>${aliyun-pnvs.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>

@@ -7,6 +7,10 @@ spring:
     name: hmdp
   main:
     banner-mode: console
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${HMDP_DATASOURCE_URL:jdbc:mysql://localhost:3306/hmdp?useSSL=false&serverTimezone=UTC}
@@ -57,6 +61,29 @@ logging:
     com.hmdp.mapper.CacheInvalidationOutboxMapper: info
 
 hmdp:
+  sms:
+    # mock: local; aliyun-pnvs: personal SMS verification; aliyun: ordinary enterprise SMS.
+    provider: ${HMDP_SMS_PROVIDER:mock}
+    send-interval-seconds: ${HMDP_SMS_SEND_INTERVAL_SECONDS:60}
+    max-sends-per-day: ${HMDP_SMS_MAX_SENDS_PER_DAY:10}
+    ip-max-count: ${HMDP_SMS_IP_MAX_COUNT:10}
+    aliyun:
+      access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}
+      sign-name: ${HMDP_SMS_ALIYUN_SIGN_NAME:}
+      template-code: ${HMDP_SMS_ALIYUN_TEMPLATE_CODE:}
+      code-param-name: ${HMDP_SMS_ALIYUN_CODE_PARAM_NAME:code}
+      connect-timeout-ms: ${HMDP_SMS_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${HMDP_SMS_READ_TIMEOUT_MS:5000}
+    pnvs:
+      access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}
+      sign-name: ${HMDP_SMS_PNVS_SIGN_NAME:}
+      template-code: ${HMDP_SMS_PNVS_TEMPLATE_CODE:}
+      code-param-name: ${HMDP_SMS_PNVS_CODE_PARAM_NAME:code}
+      minutes-param-name: ${HMDP_SMS_PNVS_MINUTES_PARAM_NAME:min}
+      connect-timeout-ms: ${HMDP_SMS_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${HMDP_SMS_READ_TIMEOUT_MS:5000}
   instance-id: app-1
   cache:
     shop:
